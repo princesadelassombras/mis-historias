@@ -74,7 +74,7 @@
         <span>${L('Publicada', 'Published')}: ${A.fmtDate(w.pubAt)}</span>
         <span>${w.complete ? L('Terminada', 'Completed') : L('Actualizada', 'Updated')}: ${A.fmtDate(inf.updated)}</span>
         <span>${L('Palabras', 'Words')}: ${A.fmtNum(inf.words)}</span>
-        <span>${L('Capítulos', 'Chapters')}: ${inf.chapters}/${w.complete ? inf.chapters : '?'}</span>
+        <span>${L('Capítulos', 'Chapters')}: ${inf.chapters}/${A.chapterTotal(w, inf.chapters)}</span>
         <span>${L('Lecturas', 'Hits')}: ${A.fmtNum(w.views)}</span>
         <span>${L('Lectura aprox.', 'Reading time')}: ${A.readMinutes(inf.words)} min</span>
       </dd></div>
@@ -134,12 +134,13 @@
     seriesWorks = w.series ? await A.getWorks() : [];
     const titleMissing = !A.has(w.title, A.lang);
     main.innerHTML = `<article class="work page-mid">
-      <header class="work-head">
+      <header class="work-head${w.cover ? ' work-head-cover' : ''}"><div>
         <p class="eyebrow">${esc(A.secName(w.section))}${w.sub ? ' › ' + esc(A.subName(w.section, w.sub)) : ''}</p>
         <h1 class="work-title">${esc(A.pick(w.title))}</h1>
         <p class="wbyline">${L('por', 'by')} ${esc(A.settings.authorName)}</p>
         ${titleMissing ? `<p class="lang-note">${L('Esta obra todavía no está traducida al español.', 'This work has not been translated to English yet.')}</p>` : ''}
         ${admin ? `<p class="admin-strip"><a class="btn btn-small" href="#/admin/w/${esc(w.id)}">${L('Editar obra', 'Edit work')}</a> <span class="pill pill-${A.pubState(w.pubAt)}">${({ draft: L('Borrador', 'Draft'), scheduled: L('Programada', 'Scheduled'), published: L('Publicada', 'Published') })[A.pubState(w.pubAt)]}</span></p>` : ''}
+      </div>${w.cover ? `<img class="work-cover" src="${esc(w.cover)}" alt="${L('Portada de', 'Cover of')} ${esc(A.pick(w.title))}">` : ''}
       </header>
       ${metaBox(w, chapters)}
       <section class="summary"><h2 class="sub-title">${L('Resumen', 'Summary')}</h2><p>${esc(A.pick(w.summary))}</p></section>
@@ -147,6 +148,7 @@
         ${chapters.length ? `<a class="btn btn-primary" href="#/w/${esc(w.id)}/c/${esc(chapters[0].id)}">${L('Empezar a leer', 'Start reading')}</a>` : ''}
         ${followBtn(w)}
         ${chapters.length ? `<button type="button" class="btn btn-ghost" id="btn-pdf-all">${L('Descargar PDF', 'Download PDF')}</button>` : ''}
+        ${chapters.length && admin ? `<button type="button" class="btn btn-ghost" id="btn-book">${L('Libro A5 para imprimir', 'Printable A5 book')}</button>` : ''}
       </div>
       <section class="toc">
         <h2 class="sub-title">${L('Índice', 'Table of contents')}</h2>
@@ -160,6 +162,7 @@
     tagClicks(main.querySelector('.work-meta'));
     wireFollow(w);
     A.markSeen(w);
+    if ($('#btn-book')) $('#btn-book').onclick = () => A.pdf.printBook(w, chapters, A.lang);
     if ($('#btn-pdf-all')) $('#btn-pdf-all').onclick = () => A.pdf.download(w, chapters.filter((c) => A.isVisible(c.pubAt) || admin), A.lang);
   };
 
@@ -193,7 +196,7 @@
         </label>
       </div>
       <header class="ch-head page-read">
-        <p class="eyebrow">${L('Capítulo', 'Chapter')} ${idx + 1}${w.complete ? ' / ' + chapters.length : ''}</p>
+        <p class="eyebrow">${L('Capítulo', 'Chapter')} ${idx + 1} / ${A.chapterTotal(w, chapters.length)}</p>
         <h1 class="ch-title">${esc(chTitle || L('Capítulo', 'Chapter') + ' ' + (idx + 1))}</h1>
         <p class="ch-sub">${A.fmtDate(ch.pubAt)} · ${A.readMinutes((ch.words || {})[A.lang] || (ch.words || {}).es)} min ${L('de lectura', 'read')}
           ${admin ? ` · <a href="#/admin/w/${esc(wid)}/c/${esc(cid)}">${L('Editar capítulo', 'Edit chapter')}</a>` : ''}</p>

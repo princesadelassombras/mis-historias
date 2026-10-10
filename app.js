@@ -28,6 +28,9 @@
   A.warnName = (id) => { const w = (A.settings.warnings || []).find((x) => x.id === id); return w ? A.pick(w.name) : id; };
   A.warnNeutral = (id) => { const w = (A.settings.warnings || []).find((x) => x.id === id); return !!(w && w.neutral); };
 
+  /* Total de capítulos: si está terminada, los publicados; si no, los previstos o "?" */
+  A.chapterTotal = (w, published) => (w.complete ? published : w.plannedChapters ? Math.max(w.plannedChapters, published) : '?');
+
   A.workInfo = (w) => {
     const vis = (w.chapterMeta || []).filter((c) => A.isVisible(c.pubAt));
     const other = A.lang === 'es' ? 'en' : 'es';
@@ -232,8 +235,8 @@
     const inf = A.workInfo(w);
     const st = A.pubState(w.pubAt);
     const warns = (w.warnings || []).filter((x) => !A.warnNeutral(x));
-    const total = w.complete ? inf.chapters : '?';
-    return `<article class="blurb">
+    const total = A.chapterTotal(w, inf.chapters);
+    return `<article class="blurb${w.cover ? ' blurb-with-cover' : ''}">${w.cover ? `<a href="#/w/${esc(w.id)}" tabindex="-1" aria-hidden="true"><img class="blurb-cover" src="${esc(w.cover)}" alt="" loading="lazy"></a><div>` : ''}
       <div class="blurb-head">
         <div class="blurb-icons">${A.ratingChip(w.rating)}
           <span class="state ${w.complete ? 'st-done' : 'st-wip'}" title="${w.complete ? L('Terminada', 'Complete') : L('En curso', 'In progress')}">${w.complete ? '✓' : '…'}</span>
@@ -255,7 +258,7 @@
         <div><dt>${L('Capítulos', 'Chapters')}</dt><dd>${inf.chapters}/${total}</dd></div>
         <div><dt>${L('Lecturas', 'Hits')}</dt><dd>${A.fmtNum(w.views)}</dd></div>
       </dl>
-    </article>`;
+    ${w.cover ? '</div>' : ''}</article>`;
   };
 
   /* ---------- Portada: explorar y buscar ---------- */

@@ -72,7 +72,7 @@
           return `<tr>
             <td><a href="#/admin/w/${esc(w.id)}" class="strong">${esc(A.pick(w.title) || L('(sin título)', '(untitled)'))}</a><br><span class="muted sm">${esc(A.secName(w.section))}${w.sub ? ' › ' + esc(A.subName(w.section, w.sub)) : ''}</span></td>
             <td>${statePill(w.pubAt)}</td>
-            <td class="num">${inf.chapters}/${(w.chapterMeta || []).length}</td>
+            <td class="num">${inf.chapters}/${A.chapterTotal(w, inf.chapters)}</td>
             <td class="num">${A.fmtNum(inf.words)}</td>
             <td class="num">${A.fmtNum(w.views)}</td>
             <td>${A.fmtDate(w.updatedAt)}</td>
@@ -138,7 +138,8 @@
 
     body.innerHTML = `<div class="admin-head">
         <h1 class="page-title">${isNew ? L('Nueva obra', 'New work') : esc(A.pick(w.title) || L('(sin título)', '(untitled)'))}</h1>
-        ${isNew ? '' : `<a class="btn btn-ghost" href="#/w/${esc(w.id)}">${L('Ver como lectora', 'View as reader')}</a>`}
+        ${isNew ? '' : `<div class="row-btns"><a class="btn btn-ghost" href="#/w/${esc(w.id)}">${L('Ver como lectora', 'View as reader')}</a>
+          <button type="button" class="btn btn-ghost" id="w-book">${L('Libro A5 para imprimir', 'Printable A5 book')}</button></div>`}
       </div>
       <form id="work-form" class="form-grid">
         <section class="form-sec"><h2 class="sub-title">${L('Datos principales', 'Main details')}</h2>
@@ -152,6 +153,16 @@
           <fieldset><legend>${L('Advertencias', 'Warnings')}</legend><div class="check-grid">
             ${(s.warnings || []).map((x) => `<label class="chk"><input type="checkbox" name="w-warn" value="${esc(x.id)}" ${(w.warnings || []).includes(x.id) ? 'checked' : ''}> ${esc(A.pick(x.name))}</label>`).join('')}
           </div></fieldset>
+        </section>
+        <section class="form-sec"><h2 class="sub-title">${L('Portada', 'Cover')}</h2>
+          <div class="cover-row">
+            <div>
+              <label class="field"><span>${L('Imagen de portada', 'Cover image')}</span>
+                <input id="w-cover" value="${esc(w.cover || '')}" placeholder="portada-legado.jpg  o  https://…"></label>
+              <p class="hint">${L('Subí la imagen a tu repositorio de GitHub y escribí acá su nombre (por ejemplo portada-legado.jpg). Para el libro A5 conviene que sea vertical, proporción 2:3 o A5 (por ejemplo 1480 × 2100 píxeles).', 'Upload the image to your GitHub repository and type its file name here. For the A5 book, use a portrait image (2:3 or A5 ratio, e.g. 1480 × 2100 px).')}</p>
+            </div>
+            <img id="w-cover-prev" class="cover-preview" alt="" ${w.cover ? `src="${esc(w.cover)}"` : 'hidden'}>
+          </div>
         </section>
         <section class="form-sec"><h2 class="sub-title">${L('Etiquetas', 'Tags')}</h2>
           <p class="hint">${L('Separalas con comas. Te sugiere las que ya usaste.', "Separate with commas. You'll get suggestions from tags you've used.")}</p>
@@ -168,6 +179,9 @@
             <label class="field"><span>${L('Número de parte', 'Part number')}</span><input id="w-part" type="number" min="1" inputmode="numeric" value="${esc(w.seriesPart || '')}" placeholder="1"></label>
           </div>
           <p class="hint">${L('Para sumar varias obras a la misma serie, escribí exactamente el mismo nombre en cada una.', 'To group works in a series, type the exact same name in each one.')}</p>
+          <label class="field"><span>${L('Capítulos previstos (opcional)', 'Planned chapters (optional)')}</span>
+            <input id="w-planned" type="number" min="1" inputmode="numeric" value="${esc(w.plannedChapters || '')}" placeholder="?" style="max-width:8rem"></label>
+          <p class="hint">${L('Se muestra como 5/30. Si lo dejás vacío, aparece 5/?. Cuando marcás la obra como terminada, se usa la cantidad real de capítulos.', 'Shown as 5/30. Leave empty to show 5/?. Once the work is complete, the real chapter count is used.')}</p>
           <label class="chk"><input type="checkbox" id="w-complete" ${w.complete ? 'checked' : ''}> ${L('Obra terminada', 'Work is complete')}</label>
           <label class="chk"><input type="checkbox" id="w-protect" ${w.protect ? 'checked' : ''}> ${L('Proteger contra copia (bloquea copiar, cortar y clic derecho)', 'Copy protection (blocks copy, cut and right-click)')}</label>
           <label class="field"><span>${L('CSS para toda la obra (se aplica a todos los capítulos)', 'CSS for the whole work (applies to every chapter)')}</span>
@@ -195,6 +209,12 @@
 
     const form = $('#work-form');
     form.addEventListener('input', () => (dirty = true));
+    $('#w-cover').addEventListener('input', (e) => {
+      const v = e.target.value.trim();
+      const img = $('#w-cover-prev');
+      if (v) { img.src = v; img.hidden = false; } else img.hidden = true;
+    });
+    if ($('#w-book')) $('#w-book').onclick = () => A.pdf.printBook(w, chapters, A.lang);
     $('#w-sec').onchange = (e) => { w.sub = ''; $('#w-sub').innerHTML = subOpts(e.target.value); };
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -211,6 +231,8 @@
         characters: A.splitList($('#w-characters').value),
         tags: A.splitList($('#w-tags').value),
         complete: $('#w-complete').checked,
+        cover: $('#w-cover').value.trim(),
+        plannedChapters: Math.max(0, parseInt($('#w-planned').value, 10) || 0) || null,
         series: $('#w-series').value.trim(),
         seriesPart: $('#w-series').value.trim() ? Math.max(1, Number($('#w-part').value) || 1) : null,
         protect: $('#w-protect').checked,

@@ -237,6 +237,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .blurb-title a { color: var(--ink); text-decoration: none; }
 .blurb-title a:hover { color: var(--accent); }
 .blurb-sec { margin: 3px 0 0; font-size: .85rem; color: var(--muted); }
+.blurb-series { margin: 3px 0 0; font-size: .85rem; color: var(--muted); }
 .blurb-date { font-size: .82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .warn-line { font-size: .85rem; margin: 10px 0 0; }
 .warn-label { font-weight: 700; color: var(--r-e); }
@@ -453,13 +454,15 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 
 /* ---------- Documento para PDF (siempre blanco) ---------- */
 .pdf-doc {
-  position: absolute; left: -12000px; top: 0; width: 794px; padding: 0 72px 24px;
+  position: absolute; left: -12000px; top: 0; width: 560px; padding: 0 46px 24px;
   background: #ffffff; color: #1a1a1a; --ink: #1a1a1a; --muted: #555; --line: #ccc; --sunken: #f2f2f2; --accent: #8c1d33; --story-zoom: 1;
   font-family: var(--font-read);
 }
-.pdf-doc .story-body { zoom: 1; color: #1a1a1a; font-size: 15px; line-height: 1.7; }
-.pdf-cover { text-align: center; padding: 120px 0 60px; }
-.pdf-cover h1 { font-family: var(--font-display); font-weight: 400; font-size: 34px; margin: 12px 0; }
+.pdf-doc .story-body { zoom: 1; color: #1a1a1a; font-size: 13px; line-height: 1.65; }
+.pdf-cover-page { text-align: center; padding: 0; }
+.pdf-cover-page img { max-width: 100%; max-height: 650px; object-fit: contain; border-radius: 0; }
+.pdf-cover { text-align: center; padding: 90px 0 40px; }
+.pdf-cover h1 { font-family: var(--font-display); font-weight: 400; font-size: 28px; margin: 12px 0; }
 .pdf-site { font: 600 11px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: #8c1d33; }
 .pdf-by, .pdf-meta { font-family: var(--font-ui); font-size: 13px; color: #555; margin: 4px 0; }
 .pdf-sum { font-size: 14px; max-width: 520px; margin: 24px auto 0; line-height: 1.6; }
@@ -485,4 +488,54 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ---------- Portadas ---------- */
+.blurb-with-cover { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; }
+.blurb-cover { width: 72px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); background: var(--sunken); }
+.work-head-cover { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 20px; align-items: end; }
+.work-cover { width: 150px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); box-shadow: 0 8px 24px rgb(0 0 0 / .18); max-width: 100%; }
+.cover-preview { width: 90px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); background: var(--sunken); }
+.cover-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 14px; align-items: start; }
+@media (max-width: 640px) {
+  .work-head-cover { grid-template-columns: minmax(0, 1fr); }
+  .work-cover { width: 120px; order: -1; }
+  .blurb-with-cover { grid-template-columns: 56px minmax(0, 1fr); }
+  .blurb-cover { width: 56px; }
+}
+
+/* ---------- Libro A5 para imprimir ---------- */
+#print-book { display: none; }
+@media print {
+  html.printing-book, html.printing-book body { background: #fff !important; padding: 0 !important; margin: 0 !important; display: block !important; min-height: 0 !important; }
+  html.printing-book body > *:not(#print-book) { display: none !important; }
+  html.printing-book #print-book {
+    display: block;
+    --ink: #111; --muted: #555; --line: #bbb; --sunken: #f1f1f1; --accent: #6b1527; --bg: #fff; --surface: #fff;
+    color: #111; background: #fff;
+    font-family: var(--font-read);
+  }
+  @page { size: A5; margin: 17mm 15mm 19mm;
+    @bottom-center { content: counter(page); font-family: 'Literata', Georgia, serif; font-size: 8.5pt; color: #666; } }
+  @page front { margin: 17mm 15mm; @bottom-center { content: none; } }
+  @page :first { @bottom-center { content: none; } }
+  #print-book .pb-cover { height: 209mm; width: 100%; margin: 0; padding: 0; overflow: hidden; break-after: page; }
+  #print-book .pb-cover img { width: 100%; height: 100%; object-fit: cover; display: block; max-width: none; }
+  #print-book .pb-title, #print-book .pb-legal, #print-book .pb-summary, #print-book .pb-toc { page: front; break-after: page; }
+  #print-book .pb-title { text-align: center; padding-top: 45mm; }
+  #print-book .pb-title h1 { font-family: var(--font-display); font-weight: 400; font-size: 24pt; line-height: 1.15; margin: 0 0 10mm; }
+  #print-book .pb-author { font-size: 12pt; margin: 0 0 4mm; letter-spacing: .04em; }
+  #print-book .pb-fandom { font-size: 9pt; color: #555; font-style: italic; }
+  #print-book .pb-legal { display: flex; flex-direction: column; justify-content: flex-end; min-height: 170mm; font-size: 8pt; color: #444; }
+  #print-book .pb-legal p { margin: 0 0 2mm; }
+  #print-book .pb-summary h2, #print-book .pb-toc h2 { font-family: var(--font-display); font-weight: 400; font-size: 15pt; text-align: center; margin: 15mm 0 8mm; }
+  #print-book .pb-summary p { font-size: 10pt; line-height: 1.6; text-align: justify; }
+  #print-book .pb-toc ol { font-size: 10pt; line-height: 1.9; padding-left: 7mm; }
+  #print-book .pb-chapter { break-before: page; }
+  #print-book .pb-num { text-align: center; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .14em; color: #666; margin: 18mm 0 3mm; }
+  #print-book .pb-chtitle { font-family: var(--font-display); font-weight: 400; font-size: 17pt; text-align: center; margin: 0 0 11mm; break-after: avoid; }
+  #print-book .story-body { zoom: 1; font-size: 10.5pt; line-height: 1.55; color: #111; text-align: justify; hyphens: auto; }
+  #print-book .story-body p { margin: 0 0 .7em; orphans: 2; widows: 2; }
+  #print-book #workskin > div, #print-book #workskin > figure, #print-book #workskin > table { break-inside: avoid; text-align: left; }
+  #print-book img { max-width: 100%; }
 }
