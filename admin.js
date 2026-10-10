@@ -162,6 +162,12 @@
           <label class="field"><span>${L('Etiquetas libres', 'Additional tags')}</span><input id="w-tags" list="dl-tags" value="${esc((w.tags || []).join(', '))}"></label>
         </section>
         <section class="form-sec"><h2 class="sub-title">${L('Opciones', 'Options')}</h2>
+          <datalist id="dl-series">${[...new Set(works.map((x) => x.series).filter(Boolean))].map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+          <div class="cols-2">
+            <label class="field"><span>${L('Serie (opcional)', 'Series (optional)')}</span><input id="w-series" list="dl-series" value="${esc(w.series || '')}" placeholder="${L('Nombre de la serie', 'Series name')}"></label>
+            <label class="field"><span>${L('Número de parte', 'Part number')}</span><input id="w-part" type="number" min="1" inputmode="numeric" value="${esc(w.seriesPart || '')}" placeholder="1"></label>
+          </div>
+          <p class="hint">${L('Para sumar varias obras a la misma serie, escribí exactamente el mismo nombre en cada una.', 'To group works in a series, type the exact same name in each one.')}</p>
           <label class="chk"><input type="checkbox" id="w-complete" ${w.complete ? 'checked' : ''}> ${L('Obra terminada', 'Work is complete')}</label>
           <label class="chk"><input type="checkbox" id="w-protect" ${w.protect ? 'checked' : ''}> ${L('Proteger contra copia (bloquea copiar, cortar y clic derecho)', 'Copy protection (blocks copy, cut and right-click)')}</label>
           <label class="field"><span>${L('CSS para toda la obra (se aplica a todos los capítulos)', 'CSS for the whole work (applies to every chapter)')}</span>
@@ -205,6 +211,8 @@
         characters: A.splitList($('#w-characters').value),
         tags: A.splitList($('#w-tags').value),
         complete: $('#w-complete').checked,
+        series: $('#w-series').value.trim(),
+        seriesPart: $('#w-series').value.trim() ? Math.max(1, Number($('#w-part').value) || 1) : null,
         protect: $('#w-protect').checked,
         css: $('#w-css').value,
         pubAt: readPub(form, 'w', w.pubAt),
