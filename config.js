@@ -11,6 +11,6 @@ window.SITE_CONFIG = {
     messagingSenderId: "625079083008",
     appId: "1:625079083008:web:2543bdbeb24af8a7e9f8e5"
   },
-  adminUid: "",
+  adminUid: "ZyyPEiu9jHgOxB5ku0Gvp3Otjqt2",
   firebaseVersion: "12.19.0"
 };
