@@ -68,6 +68,7 @@
       ${row(L('Relaciones', 'Relationships'), tagList(w.relationships, 'tag-rel'))}
       ${row(L('Personajes', 'Characters'), tagList(w.characters, 'tag-char'))}
       ${row(L('Etiquetas', 'Additional tags'), tagList(w.tags))}
+      ${w.series ? row(L('Serie', 'Series'), seriesNav(w)) : ''}
       ${row(L('Idioma', 'Language'), inf.langs.map((l) => (l === 'es' ? 'Español' : 'English')).join(' · '))}
       <div class="meta-row meta-stats"><dt>${L('Estadísticas', 'Stats')}</dt><dd>
         <span>${L('Publicada', 'Published')}: ${A.fmtDate(w.pubAt)}</span>
@@ -78,6 +79,16 @@
         <span>${L('Lectura aprox.', 'Reading time')}: ${A.readMinutes(inf.words)} min</span>
       </dd></div>
     </dl>`;
+  };
+
+  /* Serie: "Parte 2 de X" con enlaces a la parte anterior y la siguiente */
+  let seriesWorks = [];
+  const seriesNav = (w) => {
+    const list = seriesWorks.filter((x) => x.series === w.series).sort((a, b) => (a.seriesPart || 1) - (b.seriesPart || 1));
+    const i = list.findIndex((x) => x.id === w.id);
+    const prev = list[i - 1];
+    const next = list[i + 1];
+    return `${prev ? `<a href="#/w/${esc(prev.id)}">← ${L('Anterior', 'Previous')}</a> · ` : ''}${L('Parte', 'Part')} ${esc(w.seriesPart || 1)} ${L('de', 'of')} <a href="#/series/${encodeURIComponent(w.series)}">${esc(w.series)}</a>${next ? ` · <a href="#/w/${esc(next.id)}">${L('Siguiente', 'Next')} →</a>` : ''}`;
   };
 
   const tagClicks = (root) =>
@@ -120,6 +131,7 @@
     if (!data) return notFound(main);
     const { w, chapters, admin } = data;
     if (needsGate(w) && !gateOk(w)) return gate(main, w, () => R.work(main, id));
+    seriesWorks = w.series ? await A.getWorks() : [];
     const titleMissing = !A.has(w.title, A.lang);
     main.innerHTML = `<article class="work page-mid">
       <header class="work-head">

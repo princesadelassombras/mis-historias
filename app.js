@@ -242,6 +242,7 @@
           <h3 class="blurb-title"><a href="#/w/${esc(w.id)}">${esc(A.pick(w.title) || L('(sin título)', '(untitled)'))}</a>
             ${st !== 'published' ? `<span class="pill pill-${st}">${st === 'draft' ? L('Borrador', 'Draft') : L('Programada', 'Scheduled')}</span>` : ''}</h3>
           <p class="blurb-sec">${esc(A.secName(w.section))}${w.sub ? ' › ' + esc(A.subName(w.section, w.sub)) : ''}${(w.fandoms || []).length ? ' · ' + esc(w.fandoms.join(', ')) : ''}</p>
+          ${w.series ? `<p class="blurb-series">${L('Parte', 'Part')} ${esc(w.seriesPart || 1)} ${L('de', 'of')} <a href="#/series/${encodeURIComponent(w.series)}">${esc(w.series)}</a></p>` : ''}
         </div>
         <time class="blurb-date" datetime="${new Date(inf.updated || Date.now()).toISOString()}">${A.fmtDate(inf.updated)}</time>
       </div>
@@ -379,6 +380,29 @@
     </article>`;
   };
 
+  /* ---------- Página de una serie ---------- */
+  A.views.series = async (main, name) => {
+    const works = (await A.getWorks())
+      .filter((w) => (w.series || '') === name)
+      .sort((a, b) => (a.seriesPart || 1) - (b.seriesPart || 1));
+    const words = works.reduce((s, w) => s + A.workInfo(w).words, 0);
+    main.innerHTML = `<section class="page-mid">
+      <p class="eyebrow">${L('Serie', 'Series')}</p>
+      <h1 class="page-title">${esc(name)}</h1>
+      <p class="hint">${works.length === 1 ? L('1 obra', '1 work') : L(`${works.length} obras`, `${works.length} works`)} · ${A.fmtNum(words)} ${L('palabras', 'words')} · ${L('por', 'by')} ${esc(A.settings.authorName)}</p>
+      <div class="blurbs">${
+        works.length
+          ? works.map((w) => `<p class="new-flag">${L('Parte', 'Part')} ${esc(w.seriesPart || 1)}</p>` + A.blurb(w)).join('')
+          : `<div class="empty"><p>${L('Esta serie todavía no tiene obras publicadas.', 'This series has no published works yet.')}</p></div>`
+      }</div></section>`;
+    main.querySelector('.blurbs').addEventListener('click', (e) => {
+      const t = e.target.closest('[data-tag]');
+      if (!t) return;
+      A.filters = Object.assign(defaultFilters(), { include: [t.dataset.tag] });
+      location.hash = '#/';
+    });
+  };
+
   /* ---------- Siguiendo ---------- */
   A.views.following = async (main) => {
     const works = (await A.getWorks()).filter((w) => A.isFollowing(w.id));
@@ -414,6 +438,7 @@
       else if (parts[0] === 'w') await A.reader.work(main, parts[1]);
       else if (parts[0] === 'about') await A.views.about(main);
       else if (parts[0] === 'following') await A.views.following(main);
+      else if (parts[0] === 'series' && parts[1]) await A.views.series(main, parts[1]);
       else if (parts[0] === 'admin') await A.admin.route(main, parts.slice(1));
       else main.innerHTML = `<div class="empty page-mid"><h1 class="page-title">${L('No encontramos esta página', "We couldn't find this page")}</h1><p><a href="#/">${L('Volver al inicio', 'Back home')}</a></p></div>`;
     } catch (e) {
