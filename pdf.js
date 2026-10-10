@@ -9,6 +9,31 @@
   A.pdf = {};
   let busy = false;
 
+  /* html2canvas no dibuja el texto de un párrafo dentro de un elemento inline-block
+     (por ejemplo, los globos de los chats). Los pasamos a bloque, conservando la alineación. */
+  const fixForCanvas = (root) => {
+    root.querySelectorAll('*').forEach((el) => {
+      const cs = getComputedStyle(el);
+      if (!/^inline-(block|flex|grid)$/.test(cs.display)) return;
+      if (![...el.children].some((c) => !/^inline/.test(getComputedStyle(c).display))) return;
+      const align = el.parentElement ? getComputedStyle(el.parentElement).textAlign : '';
+      el.style.display = 'block';
+      el.style.width = 'fit-content';
+      if (align === 'right' || align === 'end') el.style.marginLeft = 'auto';
+      else if (align === 'center') { el.style.marginLeft = 'auto'; el.style.marginRight = 'auto'; }
+    });
+  };
+
+  /* Espera a que carguen las imágenes del documento (portada, avatares) */
+  const imagesReady = (root) =>
+    Promise.all([...root.querySelectorAll('img')].map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; setTimeout(r, 8000); }))));
+
+  const chapterHtml = (c, i, lang) => {
+    const body = A.parse(A.pick(c.content, lang));
+    body.querySelectorAll('script,iframe,.pc-btn,.pc-after').forEach((e) => e.remove());
+    return { title: A.pick(c.title, lang) || L('Capítulo', 'Chapter') + ' ' + (c.order || i + 1), html: body.innerHTML };
+  };
+
   A.pdf.download = async (work, chapters, lang) => {
     if (busy) return;
     if (!chapters || !chapters.length) return;
@@ -20,6 +45,7 @@
       await A.loadScript(JSPDF);
       const s = A.settings;
       const u = A.store.user();
+      const isAuthor = !!(u && u.isAdmin);
       const who = u && !u.isAdmin && u.name ? u.name : '';
       const stamp = A.fmtDate(Date.now(), true);
       const title = A.pick(work.title, lang);
@@ -29,7 +55,8 @@
       box.setAttribute('aria-hidden', 'true');
       const css = (s.globalCss || '') + '\n' + (work.css || '') + '\n' + chapters.map((c) => c.css || '').join('\n');
       box.innerHTML = `<style>${css}</style>
-        <header class="pdf-cover pdf-block">
+        ${work.cover ? `<section class="pdf-chapter pdf-cover-page pdf-block"><img src="${esc(work.cover)}" alt="" crossorigin="anonymous"></section>` : ''}
+        <header class="pdf-chapter pdf-cover pdf-block">
           <p class="pdf-site">${esc(s.siteName)}</p>
           <h1>${esc(title)}</h1>
           <p class="pdf-by">${L('por', 'by')} ${esc(s.authorName)}</p>
@@ -37,15 +64,16 @@
           ${chapters.length > 1 ? `<p class="pdf-sum">${esc(A.pick(work.summary, lang))}</p>` : ''}
         </header>
         ${chapters.map((c, i) => {
-          const body = A.parse(A.pick(c.content, lang));
-          body.querySelectorAll('script,iframe,.pc-btn').forEach((e) => e.remove());
+          const ch = chapterHtml(c, i, lang);
           return `<section class="pdf-chapter">
-            <h2 class="pdf-block">${esc(A.pick(c.title, lang) || L('Capítulo', 'Chapter') + ' ' + (c.order || i + 1))}</h2>
-            <div class="story-body"><div id="workskin">${body.innerHTML}</div></div>
+            <h2 class="pdf-block">${esc(ch.title)}</h2>
+            <div class="story-body"><div id="workskin">${ch.html}</div></div>
           </section>`;
         }).join('')}`;
       document.body.appendChild(box);
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await imagesReady(box);
+      fixForCanvas(box);
 
       const canvas = await window.html2canvas(box, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
       const scale = canvas.width / box.offsetWidth;
@@ -78,7 +106,7 @@
       }
 
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+      const doc = new jsPDF({ unit: 'mm', format: 'a5', compress: true });
       const footer = `${s.siteName} · ${title}`;
       const legal = s.watermark || '';
       const dl = who ? L(`Descargado por ${who} el ${stamp}`, `Downloaded by ${who} on ${stamp}`) : L(`Descargado el ${stamp}`, `Downloaded on ${stamp}`);
@@ -92,11 +120,12 @@
         ctx.fillRect(0, 0, pageW, pageH);
         ctx.drawImage(canvas, 0, y0, pageW, y1 - y0, 0, mTop, pageW, y1 - y0);
 
-        /* Marca de agua diagonal repetida */
+        /* Marca de agua diagonal repetida (no se pone en la copia de la autora) */
+        if (!isAuthor) {
         ctx.save();
         ctx.globalAlpha = 0.09;
         ctx.fillStyle = '#000000';
-        ctx.font = `600 ${Math.round(15 * scale)}px Figtree, Arial, sans-serif`;
+        ctx.font = `600 ${Math.round(12 * scale)}px Figtree, Arial, sans-serif`;
         ctx.translate(pageW / 2, pageH / 2);
         ctx.rotate(-Math.PI / 6);
         const mark = `${s.authorName} · ${s.siteName} · ${who || L('copia personal', 'personal copy')}`;
@@ -107,22 +136,23 @@
           }
         }
         ctx.restore();
+        }
 
         /* Pie de página */
         ctx.fillStyle = '#555555';
-        ctx.font = `${Math.round(8.5 * scale)}px Figtree, Arial, sans-serif`;
+        ctx.font = `${Math.round(7.5 * scale)}px Figtree, Arial, sans-serif`;
         ctx.textAlign = 'left';
-        ctx.fillText(footer, 40 * scale, pageH - 38 * scale);
-        ctx.fillText(dl, 40 * scale, pageH - 24 * scale);
+        ctx.fillText(footer.length > 60 ? footer.slice(0, 60) + '…' : footer, 40 * scale, pageH - 38 * scale);
+        if (!isAuthor) ctx.fillText(dl, 40 * scale, pageH - 24 * scale);
         ctx.textAlign = 'right';
         ctx.fillText(`${i + 1} / ${pages.length}`, pageW - 40 * scale, pageH - 38 * scale);
-        if (legal) {
-          ctx.font = `${Math.round(7.5 * scale)}px Figtree, Arial, sans-serif`;
-          ctx.fillText(legal.length > 110 ? legal.slice(0, 110) + '…' : legal, pageW - 40 * scale, pageH - 24 * scale);
+        if (legal && !isAuthor) {
+          ctx.font = `${Math.round(6.5 * scale)}px Figtree, Arial, sans-serif`;
+          ctx.fillText(legal.length > 80 ? legal.slice(0, 80) + '…' : legal, pageW - 40 * scale, pageH - 24 * scale);
         }
 
         if (i > 0) doc.addPage();
-        doc.addImage(pc.toDataURL('image/jpeg', 0.82), 'JPEG', 0, 0, 210, 297);
+        doc.addImage(pc.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, 148, 210);
       });
 
       doc.setProperties({ title, author: s.authorName, subject: legal, creator: s.siteName });
@@ -136,5 +166,55 @@
       box.remove();
       busy = false;
     }
+  };
+
+  /* ---------- Libro A5 para imprimir (solo autora, sin marca de agua) ----------
+     Usa la impresión del navegador: el texto queda como texto real y los estilos se respetan.
+     En la ventana de impresión se elige "Guardar como PDF". */
+  A.pdf.printBook = async (work, chapters, lang) => {
+    if (!chapters || !chapters.length) { A.toast(L('Esta obra todavía no tiene capítulos.', 'This work has no chapters yet.'), 'err'); return; }
+    const s = A.settings;
+    const title = A.pick(work.title, lang);
+    document.getElementById('print-book')?.remove();
+    const book = document.createElement('div');
+    book.id = 'print-book';
+    const css = (s.globalCss || '') + '\n' + (work.css || '') + '\n' + chapters.map((c) => c.css || '').join('\n');
+    const chs = chapters.map((c, i) => chapterHtml(c, i, lang));
+    const fandoms = (work.fandoms || []).join(' · ');
+    book.innerHTML = `<style>${css}${work.cover ? '@page :first { margin: 0 }' : ''}</style>
+      ${work.cover ? `<section class="pb-cover"><img src="${esc(work.cover)}" alt=""></section>` : ''}
+      <section class="pb-title">
+        <h1>${esc(title)}</h1>
+        <p class="pb-author">${esc(s.authorName)}</p>
+        ${fandoms ? `<p class="pb-fandom">${esc(fandoms)}</p>` : ''}
+      </section>
+      <section class="pb-legal">
+        <p>${esc(title)}</p>
+        <p>© ${new Date().getFullYear()} ${esc(s.authorName)}</p>
+        ${s.watermark ? `<p>${esc(s.watermark)}</p>` : ''}
+        <p>${esc(s.siteName)}</p>
+      </section>
+      ${A.has(work.summary, lang) || A.pick(work.summary, lang) ? `<section class="pb-summary"><h2>${L('Sinopsis', 'Synopsis')}</h2><p>${esc(A.pick(work.summary, lang))}</p></section>` : ''}
+      ${chs.length > 1 ? `<section class="pb-toc"><h2>${L('Índice', 'Contents')}</h2><ol>${chs.map((c) => `<li>${esc(c.title)}</li>`).join('')}</ol></section>` : ''}
+      ${chs.map((c, i) => `<section class="pb-chapter">
+        <p class="pb-num">${chs.length > 1 ? L('Capítulo', 'Chapter') + ' ' + (i + 1) : ''}</p>
+        <h2 class="pb-chtitle">${esc(c.title)}</h2>
+        <div class="story-body"><div id="workskin">${c.html}</div></div>
+      </section>`).join('')}`;
+    document.body.appendChild(book);
+    document.documentElement.classList.add('printing-book');
+    const prevTitle = document.title;
+    document.title = title;
+    const done = () => {
+      document.documentElement.classList.remove('printing-book');
+      book.remove();
+      document.title = prevTitle;
+      window.removeEventListener('afterprint', done);
+    };
+    window.addEventListener('afterprint', done);
+    A.toast(L('Se abre la ventana de impresión. Elegí "Guardar como PDF" como destino.', 'The print dialog opens. Choose "Save as PDF" as the destination.'));
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await imagesReady(book);
+    setTimeout(() => window.print(), 300);
   };
 })();
