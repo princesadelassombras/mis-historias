@@ -1,0 +1,87 @@
+rules_version = '2';
+
+// REGLAS DE SEGURIDAD
+// Reemplazá TU_UID_DE_AUTORA (abajo) por tu UID. La GUIA.md explica cómo conseguirlo.
+// Con estas reglas:
+//  - Cualquiera puede leer lo publicado (no los borradores ni lo programado).
+//  - Solo vos podés crear, editar o borrar obras, capítulos y ajustes.
+//  - Los lectores pueden comentar y reaccionar, pero NO pueden editar ni borrar comentarios.
+//  - Solo vos podés borrar comentarios y bloquear usuarios.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'TU_UID_DE_AUTORA';
+    }
+    function signedIn() {
+      return request.auth != null;
+    }
+    function notBlocked() {
+      return !exists(/databases/$(database)/documents/blocked/$(request.auth.uid));
+    }
+    // Publicado = tiene fecha y ya llegó (con 10 minutos de margen por relojes desfasados)
+    function visible(d) {
+      return d.pubAt != null && d.pubAt <= request.time + duration.value(10, 'm');
+    }
+    // Un lector solo puede sumar 1 visita, sin tocar nada más
+    function onlyAddsView() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+        && request.resource.data.views == resource.data.views + 1;
+    }
+
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /works/{workId} {
+      allow read: if isAdmin() || visible(resource.data);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (visible(resource.data) && onlyAddsView());
+
+      match /chapters/{chapterId} {
+        allow read: if isAdmin() || (visible(resource.data)
+          && visible(get(/databases/$(database)/documents/works/$(workId)).data));
+        allow create, delete: if isAdmin();
+        allow update: if isAdmin() || (visible(resource.data) && onlyAddsView());
+      }
+    }
+
+    match /search/{workId} {
+      allow read: if isAdmin() || visible(resource.data);
+      allow write: if isAdmin();
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if signedIn() && notBlocked()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 4000
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.isAuthor == false || isAdmin());
+      // Nadie más que vos puede editar o borrar comentarios
+      allow update, delete: if isAdmin();
+    }
+
+    match /reactions/{reactionId} {
+      allow read: if true;
+      allow create, update: if signedIn() && notBlocked()
+        && request.resource.data.uid == request.auth.uid
+        && reactionId == request.resource.data.key + '_' + request.auth.uid + '_' + request.resource.data.code
+        && request.resource.data.emoji is string
+        && request.resource.data.emoji.size() <= 16;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    match /blocked/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+  }
+}
