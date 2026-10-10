@@ -1,25 +1,16 @@
 /*
   CONFIGURACIÓN DEL SITIO
-  -----------------------
-  Mientras "firebase" esté en null, el sitio funciona en MODO DEMO:
-  todo se guarda solo en el navegador de quien lo abre (sirve para probar).
-
-  Para publicarlo de verdad, seguí la GUIA.md:
-  1. Pegá acá el objeto de configuración que te da Firebase.
-  2. Pegá tu UID de autora en adminUid (y también en firestore.rules).
+  Conectado a tu proyecto de Firebase "mis-historias".
 */
 window.SITE_CONFIG = {
-  firebase: null,
-  /* Ejemplo de cómo queda:
   firebase: {
-    apiKey: "AIza...",
-    authDomain: "tu-proyecto.firebaseapp.com",
-    projectId: "tu-proyecto",
-    storageBucket: "tu-proyecto.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "1:123456789:web:abc123"
+    apiKey: "AIzaSyC7Mku2vVzmOuuwn2aheYeHU6a0rib1s4g",
+    authDomain: "mis-historias-2e629.firebaseapp.com",
+    projectId: "mis-historias-2e629",
+    storageBucket: "mis-historias-2e629.firebasestorage.app",
+    messagingSenderId: "625079083008",
+    appId: "1:625079083008:web:2543bdbeb24af8a7e9f8e5"
   },
-  */
   adminUid: "",
   firebaseVersion: "12.19.0"
 };
