@@ -485,6 +485,29 @@
     renderHeader();
     renderFooter();
     window.addEventListener('hashchange', route);
+
+    /* Links internos dentro de un capítulo (#menu, #nota1, etc.).
+       El sitio usa el # para cambiar de página (#/w/...), así que un link
+       como href="#menu" se tomaba como una página inexistente. Acá se
+       interceptan esos links y en lugar de cambiar de página se baja
+       hasta el elemento con ese id o name dentro del capítulo. */
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest('#workskin a[href^="#"]');
+      if (!a) return;
+      const href = a.getAttribute('href');
+      if (href.startsWith('#/')) return;            /* links del sitio: siguen funcionando igual */
+      e.preventDefault();
+      const name = decodeURIComponent(href.slice(1));
+      if (!name) return;                            /* href="#" no hace nada (links de ejemplo) */
+      const box = a.closest('#workskin');
+      const dest = box.querySelector('[id="' + CSS.escape(name) + '"], [name="' + CSS.escape(name) + '"]');
+      if (!dest) return;
+      const header = document.querySelector('#site-header');
+      const offset = (header ? header.offsetHeight : 0) + 12;
+      const y = dest.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    });
+
     document.addEventListener('click', (e) => {
       const open = document.querySelector('details.menu[open]');
       if (open && !open.contains(e.target)) open.open = false;
