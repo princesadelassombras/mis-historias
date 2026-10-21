@@ -357,9 +357,12 @@
     const looksLikeChapter = (el) => (isHeading(el) || el.nodeName === 'P') && text(el).length > 0 && text(el).length <= 140 && CH_RE.test(text(el));
 
     let isMarker = looksLikeChapter;
-    /* Si alguna marca es un título de Word (H1, H2…), todos los títulos de ese nivel también son capítulos */
+    /* Si hay renglones "Capítulo N" / "Chapter N", solo esos cortan capítulos (los demás títulos quedan adentro).
+       Si solo hay marcas como "Prólogo", los títulos de Word de ese mismo nivel también son capítulos. */
+    const NUM_RE = /^\s*(cap[ií]tulo|chapter|cap\.)\b/i;
+    const hasNumbered = kids.some((k) => looksLikeChapter(k) && NUM_RE.test(text(k)));
     const headingLevels = new Set(kids.filter((k) => looksLikeChapter(k) && isHeading(k)).map((k) => k.nodeName));
-    if (headingLevels.size) isMarker = (el) => looksLikeChapter(el) || (headingLevels.has(el.nodeName) && text(el).length > 0);
+    if (!hasNumbered && headingLevels.size) isMarker = (el) => looksLikeChapter(el) || (headingLevels.has(el.nodeName) && text(el).length > 0);
     if (!kids.some(looksLikeChapter)) {
       const lvl = ['H1', 'H2', 'H3'].find((h) => kids.some((k) => k.nodeName === h));
       isMarker = lvl ? (el) => el.nodeName === lvl && text(el).length > 0 : () => false;
@@ -375,21 +378,50 @@
     kids.forEach((el) => {
       if (isMarker(el)) {
         parts.push(cur);
-        cur = { title: cleanTitle(text(el)), nodes: [], intro: false };
+        cur = { title: cleanTitle(text(el)), raw: text(el), nodes: [], intro: false };
       } else cur.nodes.push(el);
     });
     parts.push(cur);
 
-    return parts
-      .map((p) => {
-        /* Saca párrafos vacíos al principio y al final */
-        const isEmpty = (n) => !text(n) && !n.querySelector('img,table,hr');
+    const isEmpty = (n) => !text(n) && !n.querySelector('img,table,hr');
+    /* "Capítulo 2" sin nombre: si el primer renglón del capítulo es un título corto, lo usamos como nombre */
+    const GENERIC = /^\s*(cap[ií]tulo|chapter|cap\.)\s*([0-9]+|[ivxlcdm]+|[a-záéíóúñ]+)?\s*[.:]?\s*$/i;
+    const looksLikeTitle = (n) => {
+      const t = text(n);
+      if (!t || t.length > 120 || CH_RE.test(t)) return false;
+      if (isHeading(n)) return true;
+      const bold = [...n.querySelectorAll('strong,b')].map((b) => b.textContent).join('').replace(/\s+/g, ' ').trim();
+      return n.nodeName === 'P' && bold.length > 0 && bold.length >= t.length - 1;
+    };
+    parts.forEach((p) => {
+      while (p.nodes.length && isEmpty(p.nodes[0])) p.nodes.shift();
+      while (p.nodes.length && isEmpty(p.nodes[p.nodes.length - 1])) p.nodes.pop();
+      if (!p.intro && GENERIC.test(p.title) && p.nodes.length && looksLikeTitle(p.nodes[0])) {
+        p.title = text(p.nodes.shift());
         while (p.nodes.length && isEmpty(p.nodes[0])) p.nodes.shift();
-        while (p.nodes.length && isEmpty(p.nodes[p.nodes.length - 1])) p.nodes.pop();
-        const content = p.nodes.map((n) => n.outerHTML).join('\n');
-        return { title: p.title, intro: p.intro, content, words: A.countWords(content) };
-      })
-      .filter((p) => (p.intro ? p.words > 0 : true));
+      }
+      p.content = p.nodes.map((n) => n.outerHTML).join('\n');
+      p.words = A.countWords(p.content);
+    });
+
+    /* "Capítulo 5: GABI" seguido de "Capítulo 5: El mundo que vio la niña" es un solo capítulo con dos renglones de título */
+    const KEY_RE = /^\s*(cap[ií]tulo|chapter|cap\.|pr[oó]logo|prologue|ep[ií]logo|epilogue|interludio|interlude|parte|part|extra|especial)\s*([0-9]+|[ivxlcdm]+\b)?/i;
+    const keyOf = (raw) => { const m = (raw || '').match(KEY_RE); return m ? (m[1].toLowerCase().replace('í', 'i').replace('ó', 'o') + ':' + (m[2] || '').toLowerCase()) : null; };
+
+    /* Descarta las marcas vacías (por ejemplo, las del índice del documento) */
+    const out = [];
+    parts.forEach((p, i) => {
+      if (p.words > 0 || /<(img|table|hr)\b/i.test(p.content)) { out.push(p); return; }
+      const next = parts[i + 1];
+      if (p.intro || !next || next.intro) return;
+      const k = keyOf(p.raw);
+      if (k && k === keyOf(next.raw) && p.title && next.title && p.title !== next.title && !GENERIC.test(p.title)) {
+        const first = p.title.replace(/[.\s]+$/, '');
+        const second = next.title.replace(/^\s*(interludio|interlude|pr[oó]logo|prologue|ep[ií]logo|epilogue|extra|especial|parte|part)\s*[0-9ivxlcdm]*\s*[:.\-–—]\s*/i, '');
+        next.title = GENERIC.test(next.title) ? first : `${first} — ${second}`;
+      } else if (GENERIC.test(next.title) && !GENERIC.test(p.title)) next.title = p.title;
+    });
+    return out.map((p) => ({ title: p.title, intro: p.intro, content: p.content, words: p.words }));
   }
 
   async function importChapters(w, chapters, file, ensureWork) {
