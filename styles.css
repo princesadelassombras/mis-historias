@@ -509,6 +509,10 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 @media print {
   html.printing-book, html.printing-book body { background: #fff !important; padding: 0 !important; margin: 0 !important; display: block !important; min-height: 0 !important; }
   html.printing-book body > *:not(#print-book) { display: none !important; }
+  html.printing-book #print-book, html.printing-book #print-book * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   html.printing-book #print-book {
     display: block;
     --ink: #111; --muted: #555; --line: #bbb; --sunken: #f1f1f1; --accent: #6b1527; --bg: #fff; --surface: #fff;
@@ -537,5 +541,21 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   #print-book .story-body { zoom: 1; font-size: 10.5pt; line-height: 1.55; color: #111; text-align: justify; hyphens: auto; }
   #print-book .story-body p { margin: 0 0 .7em; orphans: 2; widows: 2; }
   #print-book #workskin > div, #print-book #workskin > figure, #print-book #workskin > table { break-inside: avoid; text-align: left; }
+  /* Piezas que nunca se parten entre dos páginas (los bloques largos, como BugOUT, sí pueden partirse entre sus secciones) */
+  #print-book #workskin .msg, #print-book #workskin .bubble, #print-book #workskin .tweet, #print-book #workskin .post,
+  #print-book #workskin .comment, #print-book #workskin .bugout-alerta, #print-book #workskin .bugout-masthead,
+  #print-book #workskin dl, #print-book #workskin tr, #print-book #workskin .header, #print-book #workskin .wa-cabecera,
+  #print-book #workskin .securecomm-header, #print-book #workskin .pantalla-barra { break-inside: avoid; }
+  #print-book #workskin .header, #print-book #workskin .wa-cabecera, #print-book #workskin .bugout-masthead { break-after: avoid; }
   #print-book img { max-width: 100%; }
 }
+
+/* ---------- Importar capítulos ---------- */
+.imp-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 50vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.imp-row { display: grid; grid-template-columns: auto 2rem minmax(0, 1fr); gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.imp-row:last-child { border-bottom: 0; }
+.imp-row .chk { margin: 0; }
+.imp-n { font-family: var(--font-display); color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.imp-main { display: grid; gap: 2px; min-width: 0; }
+.imp-main input { padding: 6px 9px; }
+.imp-off .imp-main { opacity: .5; }
