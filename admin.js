@@ -138,7 +138,8 @@
 
     body.innerHTML = `<div class="admin-head">
         <h1 class="page-title">${isNew ? L('Nueva obra', 'New work') : esc(A.pick(w.title) || L('(sin título)', '(untitled)'))}</h1>
-        ${isNew ? '' : `<div class="row-btns"><a class="btn btn-ghost" href="#/w/${esc(w.id)}">${L('Ver como lectora', 'View as reader')}</a>
+        ${isNew ? `<div class="row-btns"><button type="button" class="btn btn-ghost" id="w-import-new">${L('Importar desde Word', 'Import from Word')}</button>
+          <input type="file" id="w-import-new-file" accept=".docx,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden></div>` : `<div class="row-btns"><a class="btn btn-ghost" href="#/w/${esc(w.id)}">${L('Ver como lectora', 'View as reader')}</a>
           <button type="button" class="btn btn-ghost" id="w-book">${L('Libro A5 para imprimir', 'Printable A5 book')}</button></div>`}
       </div>
       <form id="work-form" class="form-grid">
@@ -221,9 +222,7 @@
     });
     if ($('#w-book')) $('#w-book').onclick = () => A.pdf.printBook(w, chapters, A.lang);
     $('#w-sec').onchange = (e) => { w.sub = ''; $('#w-sub').innerHTML = subOpts(e.target.value); };
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const data = {
+    const collect = () => ({
         id: isNew ? undefined : w.id,
         title: readBi(form, 'w-title'),
         summary: readBi(form, 'w-sum'),
@@ -243,7 +242,10 @@
         protect: $('#w-protect').checked,
         css: $('#w-css').value,
         pubAt: readPub(form, 'w', w.pubAt),
-      };
+      });
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const data = collect();
       if (!data.title.es && !data.title.en) { A.toast(L('Poné un título, aunque sea en un idioma.', 'Add a title in at least one language.'), 'err'); return; }
       if (!data.id) delete data.id;
       const btn = form.querySelector('[type=submit]');
@@ -268,6 +270,23 @@
       A.toast(L('Obra borrada.', 'Work deleted.'));
       location.hash = '#/admin';
     };
+    if ($('#w-import-new')) {
+      $('#w-import-new').onclick = () => $('#w-import-new-file').click();
+      $('#w-import-new-file').onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        /* La obra se crea recién cuando confirmás la importación */
+        const created = await importChapters({ id: null }, [], file, async (suggested, lang) => {
+          const data = collect();
+          delete data.id;
+          if (!data.title.es && !data.title.en) data.title[lang] = suggested;
+          const newId = await A.store.saveWork(data);
+          return { id: newId };
+        });
+        if (created) { dirty = false; location.hash = `#/admin/w/${created}`; }
+      };
+    }
     if ($('#w-import')) {
       $('#w-import').onclick = () => $('#w-import-file').click();
       $('#w-import-file').onchange = async (e) => {
@@ -373,7 +392,7 @@
       .filter((p) => (p.intro ? p.words > 0 : true));
   }
 
-  async function importChapters(w, chapters, file) {
+  async function importChapters(w, chapters, file, ensureWork) {
     let parsed;
     A.toast(L('Leyendo el archivo…', 'Reading the file…'));
     try {
@@ -386,8 +405,14 @@
     if (!found.length) { A.toast(L('El archivo está vacío.', 'The file is empty.'), 'err'); return false; }
     /* Si no encontró marcas de capítulo, todo el archivo es un solo capítulo */
     const single = found.length === 1 && found[0].intro;
-    if (single) found[0] = Object.assign(found[0], { intro: false, title: file.name.replace(/\.[^.]+$/, '') });
-    const hasIntro = found[0].intro;
+    const fileTitle = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    /* Título sugerido para una obra nueva: la primera línea antes del capítulo 1, o el nombre del archivo */
+    let suggested = fileTitle;
+    if (found[0].intro) {
+      const first = (A.parse(found[0].content).querySelector('h1,h2,p') || {}).textContent || '';
+      if (first.trim() && first.trim().length <= 120) suggested = first.trim();
+    }
+    if (single) found[0] = Object.assign(found[0], { intro: false, title: fileTitle });
 
     const rows = found.map((c, i) => {
       const big = c.content.length > MAX_CHARS;
@@ -406,6 +431,7 @@
       html: `<p>${L(`Encontré <b>${found.filter((c) => !c.intro).length}</b> capítulos en <b>${esc(file.name)}</b>. Revisá los títulos antes de importar.`, `Found <b>${found.filter((c) => !c.intro).length}</b> chapters in <b>${esc(file.name)}</b>. Check the titles before importing.`)}</p>
         ${single ? `<p class="hint">${L('No encontré marcas como "Capítulo 1" ni títulos de Word, así que el archivo entero va como un solo capítulo.', 'No "Chapter 1" markers or Word headings were found, so the whole file becomes one chapter.')}</p>` : ''}
         ${parsed.images ? `<p class="hint">${L(`El archivo tiene ${parsed.images} imagen(es). No se importan: subilas a GitHub y agregalas después desde el editor.`, `The file has ${parsed.images} image(s). They are not imported: upload them to GitHub and add them in the editor.`)}</p>` : ''}
+        ${ensureWork ? `<p class="hint">${L('Al importar se crea la obra con los datos que completaste. Si no le pusiste título, se llama', 'Importing creates the work with the details you filled in. If it has no title, it will be called')} <b>«${esc(suggested)}»</b>.</p>` : ''}
         <div class="cols-2">
           <label class="field"><span>${L('Idioma del texto', 'Text language')}</span>
             <select id="imp-lang"><option value="es">Español</option><option value="en">English</option></select></label>
@@ -452,6 +478,14 @@
 
     const { lang, mode, items } = result;
     const other = lang === 'es' ? 'en' : 'es';
+    if (ensureWork) {
+      try {
+        w = Object.assign({}, w, await ensureWork(suggested, lang));
+      } catch (err) {
+        A.toast(L('No se pudo crear la obra: ', "Couldn't create the work: ") + err.message, 'err');
+        return false;
+      }
+    }
     if (mode === 'translate' && items.length > chapters.length) {
       A.toast(L(`Hay ${items.length} capítulos para importar y la obra tiene ${chapters.length}. Los que sobran se agregan como capítulos nuevos.`, `There are ${items.length} chapters to import and the work has ${chapters.length}. The extra ones are added as new chapters.`));
     }
@@ -483,11 +517,11 @@
       }
       await refreshAggregates(w.id);
       A.toast(L(`Listo: se importaron ${items.length} capítulo(s).`, `Done: ${items.length} chapter(s) imported.`));
-      return true;
+      return w.id;
     } catch (err) {
       await refreshAggregates(w.id).catch(() => {});
       A.toast(L('Se cortó la importación: ', 'The import stopped: ') + err.message, 'err');
-      return true;
+      return w.id;
     }
   }
 
