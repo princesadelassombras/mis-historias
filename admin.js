@@ -197,6 +197,7 @@
       ${isNew ? '' : `<section class="form-sec chapters-admin">
         <div class="admin-head"><h2 class="sub-title">${L('Capítulos', 'Chapters')}</h2>
           <div class="row-btns" style="margin:0">
+            ${chapters.some((c) => c.pubAt == null) ? `<button type="button" class="btn btn-ghost" id="w-publish-all">${L('Publicar todos los borradores', 'Publish all drafts')} (${chapters.filter((c) => c.pubAt == null).length})</button>` : ''}
             <button type="button" class="btn btn-ghost" id="w-import">${L('Importar desde Word', 'Import from Word')}</button>
             <a class="btn btn-primary" href="#/admin/w/${esc(w.id)}/c/new">+ ${L('Nuevo capítulo', 'New chapter')}</a>
           </div>
@@ -287,6 +288,32 @@
         if (created) { dirty = false; location.hash = `#/admin/w/${created}`; }
       };
     }
+    if ($('#w-publish-all')) $('#w-publish-all').onclick = async () => {
+      const drafts = chapters.filter((c) => c.pubAt == null);
+      const workDraft = !A.isVisible(w.pubAt);
+      const res = await A.modal({
+        title: L('Publicar borradores', 'Publish drafts'),
+        html: `<p>${L(`Se van a publicar <b>${drafts.length}</b> capítulo(s) que están en borrador. Los programados no se tocan.`, `<b>${drafts.length}</b> draft chapter(s) will be published. Scheduled ones are left as they are.`)}</p>
+          ${workDraft ? `<label class="chk"><input type="checkbox" id="pa-work" checked> ${L('Publicar también la obra (si no, los lectores todavía no ven nada)', 'Also publish the work (otherwise readers still see nothing)')}</label>` : ''}`,
+        actions: [
+          { label: L('Cancelar', 'Cancel'), value: null },
+          { label: L('Publicar', 'Publish'), kind: 'primary', value: (wrap) => ({ work: !!(wrap.querySelector('#pa-work') && wrap.querySelector('#pa-work').checked) }) },
+        ],
+      });
+      if (!res) return;
+      try {
+        const now = Date.now();
+        for (let i = 0; i < drafts.length; i++) {
+          await A.store.saveChapter(w.id, { id: drafts[i].id, pubAt: now + i });
+        }
+        if (res.work && workDraft) await A.store.updateWorkMeta(w.id, { pubAt: now });
+        await refreshAggregates(w.id);
+        A.toast(L(`Publicados ${drafts.length} capítulo(s).`, `${drafts.length} chapter(s) published.`));
+        workEditor(body, w.id);
+      } catch (err) {
+        A.toast(L('No se pudo publicar: ', "Couldn't publish: ") + err.message, 'err');
+      }
+    };
     if ($('#w-import')) {
       $('#w-import').onclick = () => $('#w-import-file').click();
       $('#w-import-file').onchange = async (e) => {
