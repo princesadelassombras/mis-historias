@@ -195,7 +195,12 @@
       </form>
       ${isNew ? '' : `<section class="form-sec chapters-admin">
         <div class="admin-head"><h2 class="sub-title">${L('Capítulos', 'Chapters')}</h2>
-          <a class="btn btn-primary" href="#/admin/w/${esc(w.id)}/c/new">+ ${L('Nuevo capítulo', 'New chapter')}</a></div>
+          <div class="row-btns" style="margin:0">
+            <button type="button" class="btn btn-ghost" id="w-import">${L('Importar desde Word', 'Import from Word')}</button>
+            <a class="btn btn-primary" href="#/admin/w/${esc(w.id)}/c/new">+ ${L('Nuevo capítulo', 'New chapter')}</a>
+          </div>
+          <input type="file" id="w-import-file" accept=".docx,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden></div>
+        <p class="hint">${L('Podés subir un archivo de Word (.docx) o de texto (.txt). Si escribís en Google Docs, descargalo desde Archivo → Descargar → Microsoft Word (.docx).', 'You can upload a Word (.docx) or text (.txt) file. From Google Docs, use File → Download → Microsoft Word (.docx).')}</p>
         ${chapters.length ? `<ol class="ch-admin-list">${chapters.map((c, i) => `<li>
           <span class="ch-ord">${i + 1}</span>
           <div class="ch-info"><a href="#/admin/w/${esc(w.id)}/c/${esc(c.id)}" class="strong">${esc(A.pick(c.title) || L('Capítulo', 'Chapter') + ' ' + (i + 1))}</a>
@@ -263,6 +268,16 @@
       A.toast(L('Obra borrada.', 'Work deleted.'));
       location.hash = '#/admin';
     };
+    if ($('#w-import')) {
+      $('#w-import').onclick = () => $('#w-import-file').click();
+      $('#w-import-file').onchange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const done = await importChapters(w, chapters, file);
+        if (done) workEditor(body, w.id);
+      };
+    }
     body.querySelectorAll('[data-move]').forEach((b) =>
       (b.onclick = async () => {
         const i = chapters.findIndex((c) => c.id === b.dataset.move);
@@ -276,6 +291,204 @@
         workEditor(body, w.id);
       })
     );
+  }
+
+  /* ---------- Importar capítulos desde Word (.docx) o texto (.txt) ---------- */
+  const MAMMOTH = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
+  /* Palabras que marcan el comienzo de un capítulo */
+  const CH_RE = /^\s*(cap[ií]tulo|chapter|cap\.|pr[oó]logo|prologue|ep[ií]logo|epilogue|interludio|interlude|parte|part|extra|especial)\b/i;
+  const MAX_CHARS = 850000; /* Firestore guarda hasta ~1 MB por capítulo */
+
+  /* Convierte el archivo en HTML */
+  async function fileToHtml(file) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.docx')) {
+      await A.loadScript(MAMMOTH);
+      let images = 0;
+      const res = await window.mammoth.convertToHtml(
+        { arrayBuffer: await file.arrayBuffer() },
+        {
+          styleMap: ["p[style-name='Title'] => h1:fresh", "p[style-name='Subtitle'] => h2:fresh", "p[style-name='Título'] => h1:fresh", "p[style-name='Subtítulo'] => h2:fresh"],
+          convertImage: window.mammoth.images.imgElement(() => { images++; return Promise.resolve({ src: '' }); }),
+        }
+      );
+      return { html: res.value, images };
+    }
+    if (name.endsWith('.txt') || name.endsWith('.md')) {
+      const text = await file.text();
+      const html = text
+        .replace(/\r\n?/g, '\n')
+        .split(/\n{2,}|\n(?=\s*(?:cap[ií]tulo|chapter|pr[oó]logo|ep[ií]logo)\b)/i)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
+        .join('');
+      return { html, images: 0 };
+    }
+    throw new Error(L('Solo se pueden importar archivos .docx o .txt.', 'Only .docx or .txt files can be imported.'));
+  }
+
+  /* Detecta los capítulos dentro del HTML */
+  function splitChapters(html) {
+    const b = A.parse(html);
+    b.querySelectorAll('img:not([src]), img[src=""]').forEach((i) => i.remove());
+    const kids = [...b.children];
+    const text = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const isHeading = (el) => /^H[1-6]$/.test(el.nodeName);
+    const looksLikeChapter = (el) => (isHeading(el) || el.nodeName === 'P') && text(el).length > 0 && text(el).length <= 140 && CH_RE.test(text(el));
+
+    let isMarker = looksLikeChapter;
+    /* Si alguna marca es un título de Word (H1, H2…), todos los títulos de ese nivel también son capítulos */
+    const headingLevels = new Set(kids.filter((k) => looksLikeChapter(k) && isHeading(k)).map((k) => k.nodeName));
+    if (headingLevels.size) isMarker = (el) => looksLikeChapter(el) || (headingLevels.has(el.nodeName) && text(el).length > 0);
+    if (!kids.some(looksLikeChapter)) {
+      const lvl = ['H1', 'H2', 'H3'].find((h) => kids.some((k) => k.nodeName === h));
+      isMarker = lvl ? (el) => el.nodeName === lvl && text(el).length > 0 : () => false;
+    }
+
+    const cleanTitle = (t) => {
+      const m = t.match(/^\s*(?:cap[ií]tulo|chapter|cap\.)\s*([0-9ivxlcdm]+|[a-záéíóúñ]+)?\s*[:.\-–—|]\s*(.+)$/i);
+      return (m && m[2].trim()) || t;
+    };
+
+    const parts = [];
+    let cur = { title: '', nodes: [], intro: true };
+    kids.forEach((el) => {
+      if (isMarker(el)) {
+        parts.push(cur);
+        cur = { title: cleanTitle(text(el)), nodes: [], intro: false };
+      } else cur.nodes.push(el);
+    });
+    parts.push(cur);
+
+    return parts
+      .map((p) => {
+        /* Saca párrafos vacíos al principio y al final */
+        const isEmpty = (n) => !text(n) && !n.querySelector('img,table,hr');
+        while (p.nodes.length && isEmpty(p.nodes[0])) p.nodes.shift();
+        while (p.nodes.length && isEmpty(p.nodes[p.nodes.length - 1])) p.nodes.pop();
+        const content = p.nodes.map((n) => n.outerHTML).join('\n');
+        return { title: p.title, intro: p.intro, content, words: A.countWords(content) };
+      })
+      .filter((p) => (p.intro ? p.words > 0 : true));
+  }
+
+  async function importChapters(w, chapters, file) {
+    let parsed;
+    A.toast(L('Leyendo el archivo…', 'Reading the file…'));
+    try {
+      parsed = await fileToHtml(file);
+    } catch (err) {
+      A.toast(L('No se pudo leer el archivo: ', "Couldn't read the file: ") + err.message, 'err');
+      return false;
+    }
+    let found = splitChapters(parsed.html);
+    if (!found.length) { A.toast(L('El archivo está vacío.', 'The file is empty.'), 'err'); return false; }
+    /* Si no encontró marcas de capítulo, todo el archivo es un solo capítulo */
+    const single = found.length === 1 && found[0].intro;
+    if (single) found[0] = Object.assign(found[0], { intro: false, title: file.name.replace(/\.[^.]+$/, '') });
+    const hasIntro = found[0].intro;
+
+    const rows = found.map((c, i) => {
+      const big = c.content.length > MAX_CHARS;
+      return `<li class="imp-row">
+        <label class="chk"><input type="checkbox" data-imp-on="${i}" ${c.intro || big ? '' : 'checked'} ${big ? 'disabled' : ''}></label>
+        <span class="imp-n">${c.intro ? '—' : ''}</span>
+        <div class="imp-main">
+          <input data-imp-title="${i}" value="${esc(c.intro ? L('Texto antes del primer capítulo', 'Text before the first chapter') : c.title)}" aria-label="${L('Título del capítulo', 'Chapter title')}">
+          <span class="muted sm">${A.fmtNum(c.words)} ${L('palabras', 'words')}${big ? ' · ' + L('demasiado largo: dividilo en dos', 'too long: split it in two') : ''}${c.intro ? ' · ' + L('desmarcado: suele ser el título o una nota', 'unchecked: usually a title or a note') : ''}</span>
+        </div></li>`;
+    }).join('');
+
+    const result = await A.modal({
+      title: L('Importar capítulos', 'Import chapters'),
+      wide: true,
+      html: `<p>${L(`Encontré <b>${found.filter((c) => !c.intro).length}</b> capítulos en <b>${esc(file.name)}</b>. Revisá los títulos antes de importar.`, `Found <b>${found.filter((c) => !c.intro).length}</b> chapters in <b>${esc(file.name)}</b>. Check the titles before importing.`)}</p>
+        ${single ? `<p class="hint">${L('No encontré marcas como "Capítulo 1" ni títulos de Word, así que el archivo entero va como un solo capítulo.', 'No "Chapter 1" markers or Word headings were found, so the whole file becomes one chapter.')}</p>` : ''}
+        ${parsed.images ? `<p class="hint">${L(`El archivo tiene ${parsed.images} imagen(es). No se importan: subilas a GitHub y agregalas después desde el editor.`, `The file has ${parsed.images} image(s). They are not imported: upload them to GitHub and add them in the editor.`)}</p>` : ''}
+        <div class="cols-2">
+          <label class="field"><span>${L('Idioma del texto', 'Text language')}</span>
+            <select id="imp-lang"><option value="es">Español</option><option value="en">English</option></select></label>
+          <label class="field"><span>${L('Cómo cargarlos', 'How to add them')}</span>
+            <select id="imp-mode">
+              <option value="new">${L('Como capítulos nuevos, al final', 'As new chapters, at the end')}</option>
+              ${chapters.length ? `<option value="translate">${L('Como traducción de los capítulos que ya están, en orden', 'As the translation of existing chapters, in order')}</option>` : ''}
+            </select></label>
+        </div>
+        <p class="hint" id="imp-mode-hint">${L('Se crean como borradores: los revisás y los publicás cuando quieras.', 'They are created as drafts: review and publish them when you want.')}</p>
+        <ol class="imp-list">${rows}</ol>`,
+      actions: [
+        { label: L('Cancelar', 'Cancel'), value: null },
+        {
+          label: L('Importar', 'Import'),
+          kind: 'primary',
+          value: (wrap) => ({
+            lang: wrap.querySelector('#imp-lang').value,
+            mode: wrap.querySelector('#imp-mode').value,
+            items: found
+              .map((c, i) => Object.assign({}, c, { on: wrap.querySelector(`[data-imp-on="${i}"]`).checked, title: wrap.querySelector(`[data-imp-title="${i}"]`).value.trim() }))
+              .filter((c) => c.on),
+          }),
+        },
+      ],
+      onOpen(wrap) {
+        const renumber = () => {
+          let n = wrap.querySelector('#imp-mode').value === 'translate' ? 0 : chapters.length;
+          wrap.querySelectorAll('.imp-row').forEach((row, i) => {
+            const on = row.querySelector('[data-imp-on]').checked;
+            row.querySelector('.imp-n').textContent = on ? String(++n) : '—';
+            row.classList.toggle('imp-off', !on);
+          });
+          wrap.querySelector('#imp-mode-hint').textContent =
+            wrap.querySelector('#imp-mode').value === 'translate'
+              ? L('El primero importado se guarda como traducción del capítulo 1, el segundo del capítulo 2, y así. No se toca el texto del otro idioma.', 'The first imported chapter becomes the translation of chapter 1, the second of chapter 2, and so on. The other language is left untouched.')
+              : L('Se crean como borradores: los revisás y los publicás cuando quieras.', 'They are created as drafts: review and publish them when you want.');
+        };
+        wrap.addEventListener('change', renumber);
+        renumber();
+      },
+    });
+    if (!result || !result.items.length) return false;
+
+    const { lang, mode, items } = result;
+    const other = lang === 'es' ? 'en' : 'es';
+    if (mode === 'translate' && items.length > chapters.length) {
+      A.toast(L(`Hay ${items.length} capítulos para importar y la obra tiene ${chapters.length}. Los que sobran se agregan como capítulos nuevos.`, `There are ${items.length} chapters to import and the work has ${chapters.length}. The extra ones are added as new chapters.`));
+    }
+    try {
+      let order = chapters.length;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const html = A.ensurePids(it.content);
+        const target = mode === 'translate' ? chapters[i] : null;
+        if (target) {
+          const content = Object.assign({ es: '', en: '' }, target.content, { [lang]: html });
+          await A.store.saveChapter(w.id, {
+            id: target.id,
+            title: Object.assign({ es: '', en: '' }, target.title, { [lang]: it.title }),
+            content,
+            words: { [lang]: A.countWords(html), [other]: A.countWords(content[other]) },
+          });
+        } else {
+          order++;
+          await A.store.saveChapter(w.id, {
+            title: { [lang]: it.title, [other]: '' },
+            content: { [lang]: html, [other]: '' },
+            noteTop: { es: '', en: '' }, noteBottom: { es: '', en: '' },
+            playlist: '', css: '', js: '', pubAt: null, order,
+            words: { [lang]: A.countWords(html), [other]: 0 },
+          });
+        }
+        A.toast(L(`Guardado ${i + 1} de ${items.length}…`, `Saved ${i + 1} of ${items.length}…`));
+      }
+      await refreshAggregates(w.id);
+      A.toast(L(`Listo: se importaron ${items.length} capítulo(s).`, `Done: ${items.length} chapter(s) imported.`));
+      return true;
+    } catch (err) {
+      await refreshAggregates(w.id).catch(() => {});
+      A.toast(L('Se cortó la importación: ', 'The import stopped: ') + err.message, 'err');
+      return true;
+    }
   }
 
   /* ---------- Editor de capítulo ---------- */
