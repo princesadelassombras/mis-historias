@@ -559,3 +559,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .imp-main { display: grid; gap: 2px; min-width: 0; }
 .imp-main input { padding: 6px 9px; }
 .imp-off .imp-main { opacity: .5; }
+.imp-st { font-weight: 700; margin-right: 6px; }
+.imp-st:not(:empty)::after { content: ' ·'; font-weight: 400; color: var(--muted); }
+.imp-new { color: var(--ok); }
+.imp-same { color: var(--muted); }
+.imp-changed { color: var(--warn); }

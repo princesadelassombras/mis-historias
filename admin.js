@@ -473,14 +473,39 @@
     }
     if (single) found[0] = Object.assign(found[0], { intro: false, title: fileTitle });
 
+    /* ---- Comparación con los capítulos que ya están en la obra ---- */
+    const normTxt = (html) => A.norm(A.plainText(html || '')).replace(/[^a-z0-9ñ]+/g, '');
+    const compareFor = (lang) => {
+      const used = new Set();
+      return found.map((c) => {
+        if (c.intro) return null;
+        const txt = normTxt(c.content);
+        const head = txt.slice(0, 300), tail = txt.slice(-300);
+        const t = A.norm(c.title).trim();
+        const pool = chapters.filter((x) => !used.has(x.id) && A.has(x.content, lang));
+        const m =
+          pool.find((x) => normTxt(x.content[lang]) === txt) ||
+          (head.length > 40 && pool.find((x) => normTxt(x.content[lang]).slice(0, 300) === head)) ||
+          (tail.length > 40 && pool.find((x) => normTxt(x.content[lang]).slice(-300) === tail)) ||
+          (t && pool.find((x) => A.norm(A.pick(x.title, lang)).trim() === t));
+        if (!m) return { status: 'new' };
+        used.add(m.id);
+        return { status: normTxt(m.content[lang]) === txt ? 'same' : 'changed', target: m, num: chapters.indexOf(m) + 1, oldWords: A.countWords(m.content[lang]) };
+      });
+    };
+    const cmp = { es: compareFor('es'), en: compareFor('en') };
+    const anyMatch = (lang) => cmp[lang].some((x) => x && x.status !== 'new');
+    const startLang = !anyMatch('es') && anyMatch('en') ? 'en' : 'es';
+    const canSync = chapters.length > 0;
+
     const rows = found.map((c, i) => {
       const big = c.content.length > MAX_CHARS;
-      return `<li class="imp-row">
+      return `<li class="imp-row" data-row="${i}">
         <label class="chk"><input type="checkbox" data-imp-on="${i}" ${c.intro || big ? '' : 'checked'} ${big ? 'disabled' : ''}></label>
         <span class="imp-n">${c.intro ? '—' : ''}</span>
         <div class="imp-main">
           <input data-imp-title="${i}" value="${esc(c.intro ? L('Texto antes del primer capítulo', 'Text before the first chapter') : c.title)}" aria-label="${L('Título del capítulo', 'Chapter title')}">
-          <span class="muted sm">${A.fmtNum(c.words)} ${L('palabras', 'words')}${big ? ' · ' + L('demasiado largo: dividilo en dos', 'too long: split it in two') : ''}${c.intro ? ' · ' + L('desmarcado: suele ser el título o una nota', 'unchecked: usually a title or a note') : ''}</span>
+          <span class="muted sm"><span class="imp-st" data-imp-st="${i}"></span>${A.fmtNum(c.words)} ${L('palabras', 'words')}<span data-imp-extra="${i}"></span>${big ? ' · ' + L('demasiado largo: dividilo en dos', 'too long: split it in two') : ''}${c.intro ? ' · ' + L('desmarcado: suele ser el título o una nota', 'unchecked: usually a title or a note') : ''}</span>
         </div></li>`;
     }).join('');
 
@@ -493,44 +518,78 @@
         ${ensureWork ? `<p class="hint">${L('Al importar se crea la obra con los datos que completaste. Si no le pusiste título, se llama', 'Importing creates the work with the details you filled in. If it has no title, it will be called')} <b>«${esc(suggested)}»</b>.</p>` : ''}
         <div class="cols-2">
           <label class="field"><span>${L('Idioma del texto', 'Text language')}</span>
-            <select id="imp-lang"><option value="es">Español</option><option value="en">English</option></select></label>
+            <select id="imp-lang"><option value="es" ${startLang === 'es' ? 'selected' : ''}>Español</option><option value="en" ${startLang === 'en' ? 'selected' : ''}>English</option></select></label>
           <label class="field"><span>${L('Cómo cargarlos', 'How to add them')}</span>
             <select id="imp-mode">
-              <option value="new">${L('Como capítulos nuevos, al final', 'As new chapters, at the end')}</option>
-              ${chapters.length ? `<option value="translate">${L('Como traducción de los capítulos que ya están, en orden', 'As the translation of existing chapters, in order')}</option>` : ''}
+              ${canSync ? `<option value="sync" selected>${L('Comparar con lo que ya está y agregar lo nuevo', 'Compare with what is there and add what is new')}</option>` : ''}
+              <option value="new">${L('Todos como capítulos nuevos, al final', 'All as new chapters, at the end')}</option>
+              ${canSync ? `<option value="translate">${L('Como traducción de los capítulos que ya están, en orden', 'As the translation of existing chapters, in order')}</option>` : ''}
             </select></label>
         </div>
-        <p class="hint" id="imp-mode-hint">${L('Se crean como borradores: los revisás y los publicás cuando quieras.', 'They are created as drafts: review and publish them when you want.')}</p>
+        <p class="hint" id="imp-mode-hint"></p>
         <ol class="imp-list">${rows}</ol>`,
       actions: [
         { label: L('Cancelar', 'Cancel'), value: null },
         {
           label: L('Importar', 'Import'),
           kind: 'primary',
-          value: (wrap) => ({
-            lang: wrap.querySelector('#imp-lang').value,
-            mode: wrap.querySelector('#imp-mode').value,
-            items: found
-              .map((c, i) => Object.assign({}, c, { on: wrap.querySelector(`[data-imp-on="${i}"]`).checked, title: wrap.querySelector(`[data-imp-title="${i}"]`).value.trim() }))
-              .filter((c) => c.on),
-          }),
+          value: (wrap) => {
+            const lang = wrap.querySelector('#imp-lang').value;
+            const mode = wrap.querySelector('#imp-mode').value;
+            return {
+              lang, mode,
+              items: found
+                .map((c, i) => Object.assign({}, c, { on: wrap.querySelector(`[data-imp-on="${i}"]`).checked, title: wrap.querySelector(`[data-imp-title="${i}"]`).value.trim(), match: cmp[lang][i] }))
+                .filter((c) => c.on),
+            };
+          },
         },
       ],
       onOpen(wrap) {
-        const renumber = () => {
-          let n = wrap.querySelector('#imp-mode').value === 'translate' ? 0 : chapters.length;
-          wrap.querySelectorAll('.imp-row').forEach((row, i) => {
+        const $m = wrap.querySelector('#imp-mode'), $l = wrap.querySelector('#imp-lang');
+        const HINTS = {
+          sync: L('«Nuevo» se agrega como borrador al final. «Ya está» se saltea. «Cambió» viene desmarcado: si lo marcás, el texto del sitio se reemplaza por el del archivo (se pierden los chats o el código que hayas agregado en el sitio a ese capítulo, pero los comentarios de los párrafos que no cambiaron se conservan).', '“New” is added as a draft at the end. “Already there” is skipped. “Changed” comes unchecked: if you check it, the site text is replaced by the file text.'),
+          new: L('Se crean como borradores al final: los revisás y los publicás cuando quieras.', 'They are created as drafts at the end: review and publish them when you want.'),
+          translate: L('El primero importado se guarda como traducción del capítulo 1, el segundo del capítulo 2, y así. No se toca el texto del otro idioma.', 'The first imported chapter becomes the translation of chapter 1, the second of chapter 2, and so on. The other language is left untouched.'),
+        };
+        const LABEL = { new: L('Nuevo', 'New'), same: L('Ya está', 'Already there'), changed: L('Cambió', 'Changed') };
+        /* Marca por defecto según el modo y el resultado de la comparación */
+        const setDefaults = () => {
+          const mode = $m.value, res = cmp[$l.value];
+          wrap.querySelectorAll('[data-imp-on]').forEach((cb) => {
+            const i = +cb.dataset.impOn;
+            if (cb.disabled || found[i].intro) return;
+            cb.checked = mode === 'sync' ? res[i].status === 'new' : true;
+          });
+        };
+        const render = () => {
+          const mode = $m.value, res = cmp[$l.value];
+          let n = mode === 'translate' ? 0 : chapters.length;
+          wrap.querySelectorAll('.imp-row').forEach((row) => {
+            const i = +row.dataset.row;
             const on = row.querySelector('[data-imp-on]').checked;
-            row.querySelector('.imp-n').textContent = on ? String(++n) : '—';
+            const r = res[i];
+            const st = row.querySelector('[data-imp-st]'), ex = row.querySelector('[data-imp-extra]');
+            st.textContent = ''; st.className = 'imp-st'; ex.textContent = '';
+            let label = on ? String(++n) : '—';
+            if (mode === 'sync' && r) {
+              st.textContent = LABEL[r.status]; st.className = 'imp-st imp-' + r.status;
+              if (r.status !== 'new') {
+                if (on) n--;
+                label = String(r.num);
+                ex.textContent = r.status === 'changed' ? ` · ${L('en el sitio', 'on the site')}: ${A.fmtNum(r.oldWords)}` : '';
+              }
+            }
+            row.querySelector('.imp-n').textContent = label;
             row.classList.toggle('imp-off', !on);
           });
-          wrap.querySelector('#imp-mode-hint').textContent =
-            wrap.querySelector('#imp-mode').value === 'translate'
-              ? L('El primero importado se guarda como traducción del capítulo 1, el segundo del capítulo 2, y así. No se toca el texto del otro idioma.', 'The first imported chapter becomes the translation of chapter 1, the second of chapter 2, and so on. The other language is left untouched.')
-              : L('Se crean como borradores: los revisás y los publicás cuando quieras.', 'They are created as drafts: review and publish them when you want.');
+          wrap.querySelector('#imp-mode-hint').textContent = HINTS[mode];
         };
-        wrap.addEventListener('change', renumber);
-        renumber();
+        $m.addEventListener('change', () => { setDefaults(); render(); });
+        $l.addEventListener('change', () => { setDefaults(); render(); });
+        wrap.addEventListener('change', (e) => { if (e.target.matches('[data-imp-on]')) render(); });
+        setDefaults();
+        render();
       },
     });
     if (!result || !result.items.length) return false;
@@ -548,13 +607,23 @@
     if (mode === 'translate' && items.length > chapters.length) {
       A.toast(L(`Hay ${items.length} capítulos para importar y la obra tiene ${chapters.length}. Los que sobran se agregan como capítulos nuevos.`, `There are ${items.length} chapters to import and the work has ${chapters.length}. The extra ones are added as new chapters.`));
     }
+    /* Conserva el identificador de cada párrafo que no cambió, así no se pierden sus comentarios */
+    const carryPids = (oldHtml, newHtml) => {
+      const key = (el) => A.norm(el.textContent || '').replace(/[^a-z0-9ñ]+/g, '');
+      const map = new Map();
+      [...A.parse(oldHtml || '').children].forEach((el) => { const id = el.getAttribute('data-pid'); const k = key(el); if (id && k && !map.has(k)) map.set(k, id); });
+      const b = A.parse(newHtml);
+      [...b.children].forEach((el) => { const k = key(el); if (k && map.has(k)) { el.setAttribute('data-pid', map.get(k)); map.delete(k); } });
+      return A.ensurePids(b.innerHTML);
+    };
+    let created = 0, updated = 0;
     try {
       let order = chapters.length;
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const html = A.ensurePids(it.content);
-        const target = mode === 'translate' ? chapters[i] : null;
+        const target = mode === 'translate' ? chapters[i] : mode === 'sync' && it.match && it.match.target ? it.match.target : null;
         if (target) {
+          const html = carryPids(target.content && target.content[lang], it.content);
           const content = Object.assign({ es: '', en: '' }, target.content, { [lang]: html });
           await A.store.saveChapter(w.id, {
             id: target.id,
@@ -562,7 +631,9 @@
             content,
             words: { [lang]: A.countWords(html), [other]: A.countWords(content[other]) },
           });
+          updated++;
         } else {
+          const html = A.ensurePids(it.content);
           order++;
           await A.store.saveChapter(w.id, {
             title: { [lang]: it.title, [other]: '' },
@@ -571,11 +642,12 @@
             playlist: '', css: '', js: '', pubAt: null, order,
             words: { [lang]: A.countWords(html), [other]: 0 },
           });
+          created++;
         }
         A.toast(L(`Guardado ${i + 1} de ${items.length}…`, `Saved ${i + 1} of ${items.length}…`));
       }
       await refreshAggregates(w.id);
-      A.toast(L(`Listo: se importaron ${items.length} capítulo(s).`, `Done: ${items.length} chapter(s) imported.`));
+      A.toast(L(`Listo: ${created} capítulo(s) nuevo(s)${updated ? ` y ${updated} actualizado(s)` : ''}.`, `Done: ${created} new chapter(s)${updated ? ` and ${updated} updated` : ''}.`));
       return w.id;
     } catch (err) {
       await refreshAggregates(w.id).catch(() => {});
