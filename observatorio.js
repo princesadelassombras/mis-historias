@@ -216,7 +216,7 @@
     }).join('');
 
     main.innerHTML =
-      '<section class="obs page-wide" aria-labelledby="obs-titulo">' +
+      '<section class="obs" aria-labelledby="obs-titulo">' +
         '<div class="obs-escena">' +
         '<div class="obs-vistas" role="tablist" aria-label="' + L('Cómo ver el observatorio', 'How to view the observatory') + '">' +
           '<button type="button" role="tab" class="sec-tab on" id="tab-sala" aria-selected="true" aria-controls="obs-sala">' + L('Recorrer la sala', 'Walk the hall') + '</button>' +
@@ -224,7 +224,7 @@
           '<a class="obs-vistas-archivo" href="#/archivo">' + L('Entrar al archivo →', 'Enter the archive →') + '</a>' +
         '</div>' +
         '<div class="obs-sala" id="obs-sala" role="tabpanel" aria-labelledby="tab-sala"><p class="obs-cargando">' + L('Encendiendo las velas…', 'Lighting the candles…') + '</p></div>' +
-        '<div class="obs-plano" id="obs-plano" role="tabpanel" aria-labelledby="tab-plano" hidden>' +
+        '<div class="obs-plano page-wide" id="obs-plano" role="tabpanel" aria-labelledby="tab-plano" hidden>' +
           '<figure class="obs-mapa" tabindex="0" aria-label="' + L('Mapa estelar. Tocalo para agrandarlo.', 'Star map. Tap it to enlarge.') + '">' +
             '<div class="obs-mapa-barra">' +
               '<span class="obs-mapa-titulo">' + L('Mapa estelar', 'Star map') + '</span>' +
@@ -245,6 +245,7 @@
           (instrHTML ? '<div class="obs-facultad" aria-label="' + L('Facultad: materias por año', 'University: subjects by year') + '"><h2 class="obs-facultad-titulo">' + L('Instrumentos de la Facultad', 'University instruments') + '</h2><div class="obs-anios">' + instrHTML + '</div></div>' : '') +
         '</div>' +
         '</div>' +
+        '<div class="obs-pie page-wide">' +
         '<div class="obs-intro">' +
           '<p class="eyebrow">' + L('Sala de recepción · Observatorio', 'Reception hall · Observatory') + '</p>' +
           '<h1 class="intro-title" id="obs-titulo">' + esc(s.siteName) + '</h1>' +
@@ -255,6 +256,7 @@
         '</div>' +
         (facu && sinMateria ? '<p class="hint obs-nota">' + L('Hay ' + sinMateria + ' trabajo(s) de Facultad sin materia asignada.', sinMateria + ' university piece(s) have no subject yet.') + ' <a href="#/archivo" data-sec="' + esc(facu.id) + '">' + L('Verlos', 'See them') + '</a></p>' : '') +
         (indice ? '<details class="obs-indice"><summary>' + L('Índice del cielo: todas las constelaciones en lista', 'Sky index: every constellation as a list') + '</summary><ul>' + indice + '</ul></details>' : '') +
+        '</div>' +
       '</section>';
 
     /* Clics que llevan al archivo filtrado */
@@ -329,7 +331,12 @@
     }, true);
     fig.addEventListener('keydown', function (e) { if (e.target === fig && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirMapa(); } });
     /* Al salir de la portada, que no quede la página trabada */
-    window.addEventListener('hashchange', function salir() { cerrarMapa(); window.removeEventListener('hashchange', salir); });
+    /* La portada va de borde a borde: se marca la página para que la sala ocupe toda la pantalla */
+    document.documentElement.classList.add('en-observatorio');
+    window.addEventListener('hashchange', function salir() {
+      cerrarMapa(); window.removeEventListener('hashchange', salir);
+      if (location.hash !== '#/' && location.hash !== '') document.documentElement.classList.remove('en-observatorio');
+    });
 
     var guardada = 'sala';
     try { guardada = sessionStorage.getItem('obs.vista') || 'sala'; } catch (e) {}
