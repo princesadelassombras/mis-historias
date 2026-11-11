@@ -80,7 +80,8 @@
           : L('Arrastrá para mirar alrededor · Flechas o W A S D para caminar · Clic en el piso para ir ahí · Clic en un objeto para abrirlo', 'Drag to look around · Arrow keys or W A S D to walk · Click the floor to go there · Click an object to open it')) + '</p>' +
         '<div class="sala-etiqueta" hidden></div>' +
         '<div class="sala-cartel" role="dialog" aria-live="polite" hidden></div>' +
-        '<div class="sala-botones"><button type="button" class="tool sala-centro">' + L('Volver a la entrada', 'Back to the entrance') + '</button></div>';
+        '<div class="sala-botones"><button type="button" class="tool sala-centro">' + L('Volver a la entrada', 'Back to the entrance') + '</button>' +
+        (cont.requestFullscreen ? '<button type="button" class="tool sala-completa" aria-pressed="false">' + L('Pantalla completa', 'Full screen') + '</button>' : '') + '</div>';
       var lienzo = cont.querySelector('.sala-lienzo');
       var etiqueta = cont.querySelector('.sala-etiqueta');
       var cartel = cont.querySelector('.sala-cartel');
@@ -281,21 +282,32 @@
       }
       var mats = modelo.materias, nM = mats.length;
       var angulosLibres = [];
+      /* Tramos libres de la pared (en grados) para poner instrumentos: se saltean
+         la puerta de entrada (0), la puerta cerrada (270) y la mesa con la estantería (180). */
+      var TRAMOS = [[28, 148], [212, 257], [283, 332]];
       if (nM) {
-        /* reparte las materias en los dos costados de la sala, dejando lugar para puertas y estantería */
-        var izq = Math.ceil(nM / 2), der = nM - izq;
-        for (var i = 0; i < izq; i++) angulosLibres.push(35 + (izq === 1 ? 50 : i * (100 / (izq - 1 || 1))));
-        for (var j = 0; j < der; j++) angulosLibres.push(325 - (der === 1 ? 50 : j * (100 / (der - 1 || 1))));
+        var largo = TRAMOS.reduce(function (s, t) { return s + t[1] - t[0]; }, 0), paso = largo / nM;
+        for (var i = 0; i < nM; i++) {
+          var d = paso * (i + 0.5), k = 0;
+          while (d > TRAMOS[k][1] - TRAMOS[k][0]) { d -= TRAMOS[k][1] - TRAMOS[k][0]; k++; }
+          angulosLibres.push(TRAMOS[k][0] + d);
+        }
       }
+      var muchas = nM > 8;
       mats.forEach(function (m, i) {
-        var ang = angulosLibres[i]; if (Math.abs(ang - 270) < 8) ang += 10; if (Math.abs(ang - 90) < 1) ang += 0;
-        var p = polar(7.2, ang);
+        var ang = angulosLibres[i];
+        /* con muchas materias se alternan dos filas para que no se pisen */
+        var fila = muchas ? i % 2 : 0;
+        var p = polar(fila ? 6.1 : 7.5, ang);
         var obj = instrumento(m.instrumento); obj.position.set(p.x, 0, p.z); obj.rotation.y = p.rot + Math.PI; escena.add(obj);
         obstaculos.push({ x: p.x, z: p.z, r: 0.7 });
-        var et = texto([m.nombre, m.instrumentoNombre + ' · ' + (m.n ? (m.n === 1 ? L('1 trabajo', '1 piece') : L(m.n + ' trabajos', m.n + ' pieces')) : L('sin trabajos aún', 'no work yet'))], { tam: 44, escala: 0.0042, fondo: col.hundido });
-        et.position.set(p.x, 2.35, p.z); escena.add(et);
-        tocable(obj, { titulo: m.nombre, texto: m.instrumentoNombre + '. ' + (m.n ? (m.n === 1 ? L('1 trabajo de esta materia.', '1 piece for this subject.') : L(m.n + ' trabajos de esta materia.', m.n + ' pieces for this subject.')) : L('Todavía no hay trabajos de esta materia.', 'No work for this subject yet.')),
-          botones: m.n ? [[L('Ver trabajos', 'See work'), function () { acc.seccion(m.sec, m.sub); }]] : [] });
+        var et = texto([m.nombre, m.instrumentoNombre + ' · ' + (m.n ? (m.n === 1 ? L('1 trabajo', '1 piece') : L(m.n + ' trabajos', m.n + ' pieces')) : L('sin trabajos aún', 'no work yet'))], { tam: 44, escala: muchas ? 0.0034 : 0.0042, fondo: col.hundido });
+        et.position.set(p.x, fila ? 2.25 : 2.75, p.z); escena.add(et);
+        /* una materia puede tener varios niveles (I, II, III): un botón por cada nivel con trabajos */
+        var niveles = m.niveles || [{ sec: m.sec, sub: m.sub, nombre: m.nombre, n: m.n }];
+        var detalle = niveles.length > 1 ? ' ' + niveles.map(function (nv) { return nv.nombre + ': ' + (nv.n ? (nv.n === 1 ? L('1 trabajo', '1 piece') : L(nv.n + ' trabajos', nv.n + ' pieces')) : L('sin trabajos', 'none yet')); }).join(' · ') + '.' : '';
+        tocable(obj, { titulo: m.nombre, texto: m.instrumentoNombre + '. ' + (m.n ? (m.n === 1 ? L('1 trabajo de esta materia.', '1 piece for this subject.') : L(m.n + ' trabajos de esta materia.', m.n + ' pieces for this subject.')) : L('Todavía no hay trabajos de esta materia.', 'No work for this subject yet.')) + detalle,
+          botones: niveles.filter(function (nv) { return nv.n; }).map(function (nv) { return [niveles.length > 1 ? L('Ver ', 'See ') + nv.nombre : L('Ver trabajos', 'See work'), function () { acc.seccion(nv.sec, nv.sub); }]; }) });
       });
 
       /* ---------- Mesa de estudio con libros ---------- */
@@ -361,6 +373,19 @@
       }
       function volverEntrada() { pos.set(0, OJOS, 5.9); yaw = 0; pitch = 0.04; destino = null; }
       cont.querySelector('.sala-centro').addEventListener('click', function () { volverEntrada(); cerrarCartel(); });
+      var botonCompleta = cont.querySelector('.sala-completa');
+      if (botonCompleta) {
+        botonCompleta.addEventListener('click', function () {
+          if (document.fullscreenElement === cont) document.exitFullscreen().catch(function () {});
+          else cont.requestFullscreen().catch(function () {});
+        });
+        document.addEventListener('fullscreenchange', function () {
+          var dentro = document.fullscreenElement === cont;
+          botonCompleta.textContent = dentro ? L('Salir de pantalla completa', 'Exit full screen') : L('Pantalla completa', 'Full screen');
+          botonCompleta.setAttribute('aria-pressed', String(dentro));
+          setTimeout(medir, 60);
+        });
+      }
 
       var raton = new THREE.Vector2(), rayo = new THREE.Raycaster();
       var arrastre = null, resaltado = null;
