@@ -173,16 +173,37 @@
         lunas + '</g>';
     });
 
-    /* Instrumentos de la Facultad, uno por materia */
+    /* Instrumentos de la Facultad. Cada materia «larga» (Gráfico I, II y III, por ejemplo)
+       es UN instrumento con sus niveles; en el plano se ven todas, ordenadas por año.
+       El año sale de sub.anio (lo carga el Panel); si falta, del número romano del nombre. */
     var materias = facu ? (facu.subs || []) : [];
-    var instr = materias.map(function (sub, i) {
-      var n = obras.filter(function (w) { return w.section === facu.id && w.sub === sub.id; }).length;
-      return '<li><a href="#/archivo" class="instrumento' + (n ? '' : ' apagado') + '" data-sec="' + esc(facu.id) + '" data-sub="' + esc(sub.id) + '">' + icono(i) +
-        '<span class="instrumento-materia">' + esc(A.pick(sub.name)) + '</span>' +
-        '<span class="instrumento-dato">' + esc(L(INSTRUMENTOS[i % INSTRUMENTOS.length].n[0], INSTRUMENTOS[i % INSTRUMENTOS.length].n[1])) + ' · ' + esc(cuentaTP(n)) + '</span></a></li>';
+    var ROMANO = { I: 1, II: 2, III: 3 };
+    function familia(nombre) { return nombre.replace(/\s+(I{1,3})$/, '').trim(); }
+    function nivel(nombre) { var m = nombre.match(/\s(I{1,3})$/); return m ? ROMANO[m[1]] : 0; }
+    var familias = [], porFamilia = {};
+    materias.forEach(function (sub) {
+      var nom = A.pick(sub.name) || sub.id, fam = familia(nom), k = fam.toLowerCase();
+      if (!porFamilia[k]) { porFamilia[k] = { nombre: fam, niveles: [] }; familias.push(porFamilia[k]); }
+      porFamilia[k].niveles.push({ sec: facu.id, sub: sub.id, nombre: nom, nivel: nivel(nom), anio: +sub.anio || nivel(nom) || 0, n: cuantas(facu.id, sub.id) });
     });
-    var mitad = Math.ceil(instr.length / 2);
-    materias.forEach(function (sub, i) { modelo.materias.push({ sec: facu.id, sub: sub.id, nombre: A.pick(sub.name), n: cuantas(facu.id, sub.id), instrumento: i, instrumentoNombre: L(INSTRUMENTOS[i % INSTRUMENTOS.length].n[0], INSTRUMENTOS[i % INSTRUMENTOS.length].n[1]) }); });
+    familias.forEach(function (f, i) {
+      f.instrumento = i; f.n = f.niveles.reduce(function (t, x) { return t + x.n; }, 0);
+      var ins = INSTRUMENTOS[i % INSTRUMENTOS.length];
+      f.instrumentoNombre = L(ins.n[0], ins.n[1]);
+      modelo.materias.push({ nombre: f.nombre, n: f.n, instrumento: i, instrumentoNombre: f.instrumentoNombre, niveles: f.niveles });
+    });
+    function iconoDe(sub) { var k = familia(A.pick(sub.name) || sub.id).toLowerCase(); return icono(porFamilia[k] ? porFamilia[k].instrumento : 0); }
+    var NOMBRE_ANIO = { 1: L('Primer año', 'First year'), 2: L('Segundo año', 'Second year'), 3: L('Tercer año', 'Third year'), 0: L('Otras materias', 'Other subjects') };
+    var anios = {};
+    materias.forEach(function (sub) { var nom = A.pick(sub.name) || sub.id, a = +sub.anio || nivel(nom) || 0; (anios[a] = anios[a] || []).push(sub); });
+    var instrHTML = [1, 2, 3, 0].filter(function (a) { return anios[a]; }).map(function (a) {
+      return '<section class="obs-anio"><h3>' + esc(NOMBRE_ANIO[a]) + '</h3><ul class="obs-instrumentos">' + anios[a].map(function (sub) {
+        var n = cuantas(facu.id, sub.id);
+        return '<li><a href="#/archivo" class="instrumento' + (n ? '' : ' apagado') + '" data-sec="' + esc(facu.id) + '" data-sub="' + esc(sub.id) + '">' + iconoDe(sub) +
+          '<span class="instrumento-materia">' + esc(A.pick(sub.name)) + '</span>' +
+          '<span class="instrumento-dato">' + esc(cuentaTP(n)) + '</span></a></li>';
+      }).join('') + '</ul></section>';
+    }).join('');
     if (estu && (estu.subs || []).length) estu.subs.forEach(function (sub) { modelo.libros.push({ sec: estu.id, sub: sub.id, nombre: A.pick(sub.name), n: cuantas(estu.id, sub.id) }); });
     else [[L('Árabe', 'Arabic'), 'arabe'], [L('Sánscrito', 'Sanskrit'), 'sanscrito']].forEach(function (b) { modelo.libros.push({ sec: estu ? estu.id : '', sub: b[1], nombre: b[0], n: 0 }); });
     var sinMateria = facu ? obras.filter(function (w) { return w.section === facu.id && !w.sub; }).length : 0;
@@ -196,6 +217,34 @@
 
     main.innerHTML =
       '<section class="obs page-wide" aria-labelledby="obs-titulo">' +
+        '<div class="obs-escena">' +
+        '<div class="obs-vistas" role="tablist" aria-label="' + L('Cómo ver el observatorio', 'How to view the observatory') + '">' +
+          '<button type="button" role="tab" class="sec-tab on" id="tab-sala" aria-selected="true" aria-controls="obs-sala">' + L('Recorrer la sala', 'Walk the hall') + '</button>' +
+          '<button type="button" role="tab" class="sec-tab" id="tab-plano" aria-selected="false" aria-controls="obs-plano">' + L('Ver el plano', 'See the map') + '</button>' +
+          '<a class="obs-vistas-archivo" href="#/archivo">' + L('Entrar al archivo →', 'Enter the archive →') + '</a>' +
+        '</div>' +
+        '<div class="obs-sala" id="obs-sala" role="tabpanel" aria-labelledby="tab-sala"><p class="obs-cargando">' + L('Encendiendo las velas…', 'Lighting the candles…') + '</p></div>' +
+        '<div class="obs-plano" id="obs-plano" role="tabpanel" aria-labelledby="tab-plano" hidden>' +
+          '<figure class="obs-mapa" tabindex="0" aria-label="' + L('Mapa estelar. Tocalo para agrandarlo.', 'Star map. Tap it to enlarge.') + '">' +
+            '<div class="obs-mapa-barra">' +
+              '<span class="obs-mapa-titulo">' + L('Mapa estelar', 'Star map') + '</span>' +
+              '<button type="button" class="tool obs-zoom" data-zoom="-1" aria-label="' + L('Alejar', 'Zoom out') + '">−</button>' +
+              '<button type="button" class="tool obs-zoom" data-zoom="1" aria-label="' + L('Acercar', 'Zoom in') + '">+</button>' +
+              '<button type="button" class="btn btn-ghost obs-cerrar-mapa">' + L('Cerrar', 'Close') + '</button>' +
+            '</div>' +
+            '<div class="obs-mapa-marco">' +
+            '<svg viewBox="0 0 1000 1000" role="group" aria-label="' + L('Mapa estelar del archivo', 'Star map of the archive') + '">' + svg + '</svg>' +
+            '</div>' +
+            '<p class="obs-mapa-pista">' + L('Tocá el mapa para verlo en grande', 'Tap the map to see it full size') + '</p>' +
+            '<figcaption class="obs-leyenda">' +
+              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5" fill="var(--accent)"/></svg>' + L('Estrella grande: terminada', 'Large star: complete') + '</span>' +
+              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="var(--accent)"/></svg>' + L('Estrella chica: en curso', 'Small star: in progress') + '</span>' +
+              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6" fill="none" stroke="var(--muted)" stroke-dasharray="2 2"/></svg>' + L('Planeta apagado: próximamente', 'Dim planet: coming soon') + '</span>' +
+            '</figcaption>' +
+          '</figure>' +
+          (instrHTML ? '<div class="obs-facultad" aria-label="' + L('Facultad: materias por año', 'University: subjects by year') + '"><h2 class="obs-facultad-titulo">' + L('Instrumentos de la Facultad', 'University instruments') + '</h2><div class="obs-anios">' + instrHTML + '</div></div>' : '') +
+        '</div>' +
+        '</div>' +
         '<div class="obs-intro">' +
           '<p class="eyebrow">' + L('Sala de recepción · Observatorio', 'Reception hall · Observatory') + '</p>' +
           '<h1 class="intro-title" id="obs-titulo">' + esc(s.siteName) + '</h1>' +
@@ -203,23 +252,6 @@
           '<p class="obs-guia">' + L('Las constelaciones son los fandoms y cada estrella es una historia. En el centro gira lo propio: el Sol soy yo y los planetas son mis secciones. Alrededor están los instrumentos de la facultad.', 'Constellations are fandoms and every star is a story. At the center, my own worlds: I am the Sun and the planets are my sections. Around them, the instruments from university.') + '</p>' +
           '<div class="row-btns"><a class="btn btn-primary" href="#/archivo">' + L('Entrar al archivo', 'Enter the archive') + '</a>' +
           '<a class="btn btn-ghost" href="#/about">' + L('Sobre mí', 'About me') + '</a></div>' +
-        '</div>' +
-        '<div class="obs-vistas" role="tablist" aria-label="' + L('Cómo ver el observatorio', 'How to view the observatory') + '">' +
-          '<button type="button" role="tab" class="sec-tab on" id="tab-sala" aria-selected="true" aria-controls="obs-sala">' + L('Recorrer la sala', 'Walk the hall') + '</button>' +
-          '<button type="button" role="tab" class="sec-tab" id="tab-plano" aria-selected="false" aria-controls="obs-plano">' + L('Ver el plano', 'See the map') + '</button>' +
-        '</div>' +
-        '<div class="obs-sala" id="obs-sala" role="tabpanel" aria-labelledby="tab-sala"><p class="obs-cargando">' + L('Encendiendo las velas…', 'Lighting the candles…') + '</p></div>' +
-        '<div class="obs-plano" id="obs-plano" role="tabpanel" aria-labelledby="tab-plano" hidden>' +
-          (instr.length ? '<ul class="obs-instrumentos izq" aria-label="' + L('Facultad: materias', 'University: subjects') + '">' + instr.slice(0, mitad).join('') + '</ul>' : '') +
-          '<figure class="obs-mapa">' +
-            '<svg viewBox="0 0 1000 1000" role="group" aria-label="' + L('Mapa estelar del archivo', 'Star map of the archive') + '">' + svg + '</svg>' +
-            '<figcaption class="obs-leyenda">' +
-              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5" fill="var(--accent)"/></svg>' + L('Estrella grande: terminada', 'Large star: complete') + '</span>' +
-              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.6" fill="var(--accent)"/></svg>' + L('Estrella chica: en curso', 'Small star: in progress') + '</span>' +
-              '<span><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6" fill="none" stroke="var(--muted)" stroke-dasharray="2 2"/></svg>' + L('Planeta apagado: próximamente', 'Dim planet: coming soon') + '</span>' +
-            '</figcaption>' +
-          '</figure>' +
-          (instr.length ? '<ul class="obs-instrumentos der" aria-label="' + L('Facultad: más materias', 'University: more subjects') + '">' + instr.slice(mitad).join('') + '</ul>' : '') +
         '</div>' +
         (facu && sinMateria ? '<p class="hint obs-nota">' + L('Hay ' + sinMateria + ' trabajo(s) de Facultad sin materia asignada.', sinMateria + ' university piece(s) have no subject yet.') + ' <a href="#/archivo" data-sec="' + esc(facu.id) + '">' + L('Verlos', 'See them') + '</a></p>' : '') +
         (indice ? '<details class="obs-indice"><summary>' + L('Índice del cielo: todas las constelaciones en lista', 'Sky index: every constellation as a list') + '</summary><ul>' + indice + '</ul></details>' : '') +
@@ -246,6 +278,59 @@
     }
     tabSala.addEventListener('click', function () { mostrar('sala'); });
     tabPlano.addEventListener('click', function () { mostrar('plano'); });
+    /* La sala ocupa la pantalla: se descuenta el alto de la cabecera */
+    var cab = document.getElementById('site-header');
+    if (cab) document.documentElement.style.setProperty('--alto-cabecera', cab.offsetHeight + 'px');
+
+    /* Mapa: al tocarlo se agranda a pantalla completa (y ahí sí se pueden tocar estrellas y planetas) */
+    var fig = main.querySelector('.obs-mapa'), svgMapa = fig.querySelector('.obs-mapa-marco > svg'), zoom = 1;
+    var marco = fig.querySelector('.obs-mapa-marco'), lugarMapa = document.createComment('mapa');
+    /* tamaño base: el lado más corto de la pantalla; el zoom lo multiplica y se recorre con scroll */
+    function ponerZoom(z) {
+      var centroX = (marco.scrollLeft + marco.clientWidth / 2) / (marco.scrollWidth || 1), centroY = (marco.scrollTop + marco.clientHeight / 2) / (marco.scrollHeight || 1);
+      zoom = Math.max(1, Math.min(4, z));
+      var lado = Math.max(280, Math.min(marco.clientWidth, marco.clientHeight) - 32) * zoom;
+      svgMapa.style.width = svgMapa.style.height = lado + 'px';
+      marco.scrollLeft = centroX * marco.scrollWidth - marco.clientWidth / 2;
+      marco.scrollTop = centroY * marco.scrollHeight - marco.clientHeight / 2;
+    }
+    window.addEventListener('resize', function () { if (fig.classList.contains('ampliado')) ponerZoom(zoom); });
+    function teclaMapa(e) { if (e.key === 'Escape') cerrarMapa(); }
+    function abrirMapa() {
+      if (fig.classList.contains('ampliado')) return;
+      /* se muda al final de la página para quedar por encima de la cabecera */
+      fig.parentNode.insertBefore(lugarMapa, fig); document.body.appendChild(fig);
+      fig.classList.add('ampliado'); fig.setAttribute('role', 'dialog'); fig.setAttribute('aria-modal', 'true');
+      document.documentElement.classList.add('obs-sin-scroll');
+      document.addEventListener('keydown', teclaMapa);
+      ponerZoom(1);
+      fig.querySelector('.obs-cerrar-mapa').focus({ preventScroll: true });
+    }
+    function cerrarMapa() {
+      if (!fig.classList.contains('ampliado')) return;
+      fig.classList.remove('ampliado'); fig.removeAttribute('role'); fig.removeAttribute('aria-modal');
+      if (lugarMapa.parentNode) { lugarMapa.parentNode.insertBefore(fig, lugarMapa); lugarMapa.remove(); } else fig.remove();
+      document.documentElement.classList.remove('obs-sin-scroll');
+      document.removeEventListener('keydown', teclaMapa);
+      svgMapa.style.width = svgMapa.style.height = '';
+    }
+    fig.addEventListener('click', function (e) {
+      if (e.target.closest('.obs-cerrar-mapa')) { e.preventDefault(); cerrarMapa(); return; }
+      var z = e.target.closest('.obs-zoom');
+      if (z) { e.preventDefault(); ponerZoom(zoom + (+z.getAttribute('data-zoom')) * 0.5); return; }
+      if (!fig.classList.contains('ampliado')) { e.preventDefault(); e.stopPropagation(); abrirMapa(); return; }
+      /* ya agrandado: fandoms, planetas y lunas llevan al archivo filtrado */
+      var a = e.target.closest('[data-fandom], [data-sec]');
+      if (a) {
+        e.preventDefault(); e.stopPropagation();
+        if (a.hasAttribute('data-fandom')) irArchivo({ include: a.getAttribute('data-fandom') ? [a.getAttribute('data-fandom')] : [] });
+        else irArchivo({ section: a.getAttribute('data-sec'), sub: a.getAttribute('data-sub') || '' });
+      }
+    }, true);
+    fig.addEventListener('keydown', function (e) { if (e.target === fig && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirMapa(); } });
+    /* Al salir de la portada, que no quede la página trabada */
+    window.addEventListener('hashchange', function salir() { cerrarMapa(); window.removeEventListener('hashchange', salir); });
+
     var guardada = 'sala';
     try { guardada = sessionStorage.getItem('obs.vista') || 'sala'; } catch (e) {}
     var acciones = {
