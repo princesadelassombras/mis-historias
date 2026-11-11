@@ -944,7 +944,13 @@
         return {
           id: uniq(row.dataset.id || slug(name.es || name.en), used),
           name,
-          subs: [...blk.querySelectorAll('.sub-row')].map((r) => { const n = readName(r); return { id: uniq(r.dataset.id || slug(n.es || n.en), subsUsed), name: n }; }).filter((b) => b.name.es || b.name.en),
+          subs: [...blk.querySelectorAll('.sub-row')].map((r) => {
+            const n = readName(r);
+            const id = uniq(r.dataset.id || slug(n.es || n.en), subsUsed);
+            /* conserva datos extra de la subsección (por ejemplo el año de la materia) */
+            const antes = ((((s.sections || []).find((x) => x.id === row.dataset.id) || {}).subs) || []).find((x) => x.id === r.dataset.id) || {};
+            return Object.assign({}, antes, { id, name: n });
+          }).filter((b) => b.name.es || b.name.en),
         };
       }).filter((x) => x.name.es || x.name.en);
       const wUsed = new Set();
