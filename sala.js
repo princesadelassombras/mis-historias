@@ -408,6 +408,12 @@
 
       var lienzoEl = renderer.domElement;
       lienzoEl.style.touchAction = 'none';
+      /* La ayuda se ve al entrar y se esconde sola al empezar a moverse (o a los 8 segundos) */
+      var ayuda = cont.querySelector('.sala-ayuda');
+      function ocultarAyuda() { if (ayuda) ayuda.classList.add('oculta'); }
+      setTimeout(ocultarAyuda, 8000);
+      lienzoEl.addEventListener('pointerdown', ocultarAyuda, { once: true });
+      cont.addEventListener('keydown', ocultarAyuda, { once: true });
       lienzoEl.addEventListener('pointerdown', function (ev) { etiqueta.hidden = true; arrastre = { x: ev.clientX, y: ev.clientY, yaw: yaw, pitch: pitch, movido: false }; lienzoEl.setPointerCapture(ev.pointerId); });
       lienzoEl.addEventListener('pointermove', function (ev) {
         if (arrastre) {
