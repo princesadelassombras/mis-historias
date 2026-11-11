@@ -73,13 +73,14 @@
     const u = A.store.user();
     const s = A.settings;
     const secs = (s.sections || [])
-      .map((x) => `<a href="#/" data-sec="${esc(x.id)}" class="menu-item">${esc(A.pick(x.name))}</a>`)
+      .map((x) => `<a href="#/archivo" data-sec="${esc(x.id)}" class="menu-item">${esc(A.pick(x.name))}</a>`)
       .join('');
     $('#site-header').innerHTML = `
       <div class="hdr-in">
         <a href="#/" class="brand"><span class="brand-name">${esc(s.siteName)}</span></a>
         <nav class="hdr-nav" aria-label="${L('Principal', 'Main')}">
           <details class="menu"><summary>${L('Secciones', 'Sections')}</summary><div class="menu-pop">${secs}</div></details>
+          <a href="#/archivo" class="nav-link">${L('Archivo', 'Archive')}</a>
           <a href="#/following" class="nav-link">${L('Siguiendo', 'Following')}${followBadge ? `<span class="nbadge" aria-label="${L('novedades', 'updates')}">${followBadge}</span>` : ''}</a>
           <a href="#/about" class="nav-link">${L('Sobre mí', 'About')}</a>
           ${u && u.isAdmin ? `<a href="#/admin" class="nav-link nav-admin">${L('Panel', 'Dashboard')}</a>` : ''}
@@ -105,7 +106,7 @@
       a.addEventListener('click', () => {
         A.filters = Object.assign(defaultFilters(), { section: a.dataset.sec });
         a.closest('details').open = false;
-        if (location.hash === '#/' || location.hash === '') route();
+        if (location.hash === '#/archivo') route();
       })
     );
     if ($('#demo-admin')) $('#demo-admin').onclick = () => A.store.signInAdmin();
@@ -402,7 +403,7 @@
       const t = e.target.closest('[data-tag]');
       if (!t) return;
       A.filters = Object.assign(defaultFilters(), { include: [t.dataset.tag] });
-      location.hash = '#/';
+      location.hash = '#/archivo';
     });
   };
 
@@ -424,7 +425,7 @@
       const t = e.target.closest('[data-tag]');
       if (!t) return;
       A.filters = Object.assign(defaultFilters(), { include: [t.dataset.tag] });
-      location.hash = '#/';
+      location.hash = '#/archivo';
     });
   };
 
@@ -436,7 +437,8 @@
     window.scrollTo(0, 0);
     main.innerHTML = `<div class="loading" role="status">${L('Cargando…', 'Loading…')}</div>`;
     try {
-      if (!parts.length) await A.views.home(main);
+      if (!parts.length) await (A.views.observatorio || A.views.home)(main);
+      else if (parts[0] === 'archivo') await A.views.home(main);
       else if (parts[0] === 'w' && parts[2] === 'c') await A.reader.chapter(main, parts[1], parts[3]);
       else if (parts[0] === 'w') await A.reader.work(main, parts[1]);
       else if (parts[0] === 'about') await A.views.about(main);
@@ -480,7 +482,7 @@
       renderHeader();
       renderFooter();
       const h = location.hash;
-      if (h.startsWith('#/admin') || h === '' || h === '#/') route();
+      if (h.startsWith('#/admin') || h === '' || h === '#/' || h === '#/archivo') route();
     });
     renderHeader();
     renderFooter();
