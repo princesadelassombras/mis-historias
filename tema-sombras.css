@@ -191,16 +191,36 @@
    Lo arma observatorio.js. Usa los mismos colores del tema, así que
    funciona en noche, pergamino y baja visión.
    ===================================================================== */
-.obs { display: grid; gap: 1.6rem; padding-block: 1.6rem 1rem; }
+.obs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-block: .4rem 1rem; }
+.obs-escena { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; min-width: 0; }
 .obs-intro { display: grid; gap: .5rem; max-width: 46rem; }
 .obs-intro .eyebrow { margin: 0; }
 .obs-intro .intro-title, .obs-intro .intro-sub { margin: 0; }
 .obs-guia { margin: .3rem 0 0; color: var(--muted); font-family: var(--font-read); line-height: 1.6; }
 .obs-intro .row-btns { margin: .6rem 0 0; }
 
-.obs-plano { display: grid; grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) minmax(0, 12rem); gap: 1.4rem; align-items: center; }
-.obs-mapa { margin: 0; min-width: 0; display: grid; gap: .8rem; justify-items: center; }
-.obs-mapa > svg { width: 100%; max-width: 46rem; height: auto; display: block; overflow: visible; }
+.obs-plano { display: grid; gap: 2rem; padding-top: 1rem; }
+.obs-mapa { margin: 0; min-width: 0; display: grid; gap: .8rem; justify-items: center; cursor: zoom-in; border-radius: var(--radius); }
+.obs-mapa:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.obs-mapa-marco { width: 100%; max-width: 60rem; display: flex; justify-content: center; }
+.obs-mapa-marco > svg { width: 100%; height: auto; display: block; overflow: visible; flex: none; }
+.obs-mapa:not(.ampliado) a { pointer-events: none; }
+.obs-mapa-barra { display: none; }
+.obs-mapa-pista { margin: 0; font-family: var(--font-caps, var(--font-ui)); letter-spacing: .05em; color: var(--accent); font-size: 1rem; }
+/* El mapa agrandado: ocupa toda la pantalla, se puede acercar y desplazar */
+.obs-mapa.ampliado {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg); cursor: auto;
+  display: flex; flex-direction: column; gap: 0; justify-items: stretch;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+.obs-mapa.ampliado .obs-mapa-barra { display: flex; align-items: center; gap: 8px; padding: .6rem max(16px, var(--gutter, 16px)); border-bottom: 1px solid var(--line); background: var(--surface); }
+.obs-mapa-titulo { margin-right: auto; font-family: var(--font-display); font-size: 1.3rem; }
+.obs-mapa-barra .tool { min-width: 2.4rem; font-size: 1.2rem; }
+.obs-mapa.ampliado .obs-mapa-marco { flex: 1; max-width: none; overflow: auto; display: block; padding: 1rem; overscroll-behavior: contain; }
+.obs-mapa.ampliado .obs-mapa-marco > svg { max-width: none; margin-inline: auto; }
+.obs-mapa.ampliado .obs-mapa-pista { display: none; }
+.obs-mapa.ampliado .obs-leyenda { padding: .5rem 1rem; border-top: 1px solid var(--line); background: var(--surface); }
+html.obs-sin-scroll, html.obs-sin-scroll body { overflow: hidden; }
 
 .obs-disco { fill: var(--sunken); stroke: var(--line); stroke-width: 1; }
 .obs-anillo { fill: none; stroke: var(--accent); stroke-width: 1.2; opacity: .55; }
@@ -247,14 +267,18 @@
 .obs-leyenda svg { width: 18px; height: 18px; }
 
 /* Instrumentos de la Facultad */
-.obs-instrumentos { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.obs-facultad { display: grid; gap: 1rem; border-top: 3px double var(--line); padding-top: 1.2rem; }
+.obs-facultad-titulo { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; }
+.obs-anios { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: 1.4rem; align-items: start; }
+.obs-anio h3 { margin: 0 0 .6rem; font-family: var(--font-caps, var(--font-ui)); font-weight: 400; letter-spacing: .06em; color: var(--accent); font-size: 1.1rem; }
+.obs-instrumentos { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 .instrumento {
-  display: grid; justify-items: center; text-align: center; gap: .3rem; padding: 1rem .8rem;
+  display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); column-gap: .7rem; align-items: center; text-align: left; padding: .55rem .8rem;
   color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
-.instrumento svg { width: 54px; height: 54px; color: var(--accent); }
-.instrumento-materia { font-family: var(--font-display); font-size: 1.15rem; line-height: 1.2; }
+.instrumento svg { width: 2.4rem; height: 2.4rem; color: var(--accent); grid-row: span 2; }
+.instrumento-materia { font-family: var(--font-display); font-size: 1.08rem; line-height: 1.2; }
 .instrumento-dato { font-family: var(--font-caps, var(--font-ui)); font-size: .9rem; letter-spacing: .04em; color: var(--muted); }
 .instrumento:hover { border-color: var(--accent); }
 .instrumento:hover .instrumento-materia { color: var(--accent); }
@@ -271,18 +295,18 @@
   .obs-polvo { animation: obs-titila 5s ease-in-out infinite; animation-delay: var(--d, 0s); }
   @keyframes obs-titila { 0%, 100% { opacity: .2; } 50% { opacity: .6; } }
 }
-@media (max-width: 980px) {
-  .obs-plano { grid-template-columns: minmax(0, 1fr); }
-  .obs-mapa { order: -1; }
-  .obs-instrumentos { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
-}
 
 /* ---------- Sala en 3D (la arma sala.js) ---------- */
-.obs-vistas { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.obs-vistas { display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: .6rem; }
+.obs-vistas-archivo { margin-left: auto; padding: 10px 4px; font-family: var(--font-caps, var(--font-ui)); letter-spacing: .05em; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.obs-vistas-archivo:hover { text-decoration: underline; }
 .obs-sala { position: relative; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--sunken); outline-offset: 3px; }
 .obs-sala[hidden], .obs-plano[hidden] { display: none; }
 .obs-cargando { margin: 0; padding: 4rem 1rem; text-align: center; color: var(--muted); font-style: italic; }
-.sala-lienzo { position: relative; width: 100%; height: min(72vh, 640px); min-height: 380px; }
+/* La sala ocupa casi toda la pantalla al entrar: alto de la ventana menos la cabecera, las pestañas y la ayuda */
+.sala-lienzo { position: relative; width: 100%; height: calc(100svh - var(--alto-cabecera, 64px) - 7.2rem); min-height: 360px; }
+.obs-sala:fullscreen { border: 0; border-radius: 0; display: flex; flex-direction: column; }
+.obs-sala:fullscreen .sala-lienzo { flex: 1; height: auto; }
 .sala-lienzo canvas { display: block; width: 100%; height: 100%; cursor: grab; }
 .sala-lienzo canvas:active { cursor: grabbing; }
 .sala-ayuda { margin: 0; padding: .6rem 1rem; font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line); background: var(--surface); }
@@ -297,6 +321,7 @@
 .sala-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .9rem; }
 .sala-portada { float: right; margin: 0 0 .5rem .8rem; width: 4.6rem; aspect-ratio: 2 / 3; border-radius: 3px 6px 6px 3px; background: var(--accent-soft); border: 1px solid var(--accent); box-shadow: inset 6px 0 0 color-mix(in srgb, var(--accent) 45%, transparent); display: grid; place-items: center; text-align: center; padding: .3rem; }
 .sala-portada span { font-family: var(--font-display); font-size: .95rem; line-height: 1.1; color: var(--ink); }
-.sala-botones { position: absolute; z-index: 3; top: .7rem; right: .7rem; display: flex; gap: 6px; }
+.sala-botones { position: absolute; z-index: 3; top: .7rem; right: .7rem; left: .7rem; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; pointer-events: none; }
+.sala-botones > * { pointer-events: auto; }
 .sala-botones .tool { background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 0 10px; }
-@media (max-width: 640px) { .sala-lienzo { height: 62vh; } .sala-cartel { bottom: .8rem; } }
+@media (max-width: 640px) { .sala-lienzo { height: calc(100svh - var(--alto-cabecera, 96px) - 9rem); } .sala-cartel { bottom: .8rem; } .obs-vistas .sec-tab { padding-inline: 8px; } .obs-vistas-archivo { display: none; } }
