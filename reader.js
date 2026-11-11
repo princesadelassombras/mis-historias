@@ -97,7 +97,7 @@
       if (!t) return;
       A.filters = Object.assign({ q: '', inText: false, section: '', sub: '', ratings: [], complete: 'any', wMin: '', wMax: '', from: '', to: '', include: [], exclude: [], sort: 'updated' }, { include: [t.dataset.tag] });
       A.ss.set('arch.filters', A.filters);
-      location.hash = '#/';
+      location.hash = '#/archivo';
     });
 
   const followBtn = (w) =>
