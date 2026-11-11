@@ -185,3 +185,118 @@
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='11.5' fill='none' stroke='%23E8A951' stroke-width='0.8' opacity='0.7'/%3E%3Cpath d='M14 4.5C14.6 11 17 13.4 23.5 14C17 14.6 14.6 17 14 23.5C13.4 17 11 14.6 4.5 14C11 13.4 13.4 11 14 4.5Z' fill='%23F3C27A' stroke='%230E1020' stroke-width='0.7' stroke-linejoin='round'/%3E%3C/svg%3E") 14 14, pointer;
 }
 :root.cursor-estrella :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea, [contenteditable], .ed-inner) { cursor: text; }
+
+/* =====================================================================
+   OBSERVATORIO (portada): mapa estelar, sistema solar e instrumentos.
+   Lo arma observatorio.js. Usa los mismos colores del tema, así que
+   funciona en noche, pergamino y baja visión.
+   ===================================================================== */
+.obs { display: grid; gap: 1.6rem; padding-block: 1.6rem 1rem; }
+.obs-intro { display: grid; gap: .5rem; max-width: 46rem; }
+.obs-intro .eyebrow { margin: 0; }
+.obs-intro .intro-title, .obs-intro .intro-sub { margin: 0; }
+.obs-guia { margin: .3rem 0 0; color: var(--muted); font-family: var(--font-read); line-height: 1.6; }
+.obs-intro .row-btns { margin: .6rem 0 0; }
+
+.obs-plano { display: grid; grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) minmax(0, 12rem); gap: 1.4rem; align-items: center; }
+.obs-mapa { margin: 0; min-width: 0; display: grid; gap: .8rem; justify-items: center; }
+.obs-mapa > svg { width: 100%; max-width: 46rem; height: auto; display: block; overflow: visible; }
+
+.obs-disco { fill: var(--sunken); stroke: var(--line); stroke-width: 1; }
+.obs-anillo { fill: none; stroke: var(--accent); stroke-width: 1.2; opacity: .55; }
+.obs-anillo.fino { stroke-width: .6; opacity: .35; }
+.obs-marca { stroke: var(--muted); stroke-width: 1; opacity: .55; }
+.obs-hora { font-family: var(--font-caps, var(--font-ui)); font-size: 15px; fill: var(--muted); letter-spacing: .08em; }
+.obs-meridiano { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 6; }
+.obs-ecuador { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.obs-orbita { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 7; opacity: .45; }
+.obs-polvo { fill: var(--ink); opacity: .35; }
+
+.obs-trazo { stroke: var(--accent); stroke-width: 1.2; opacity: .55; }
+.obs-halo { fill: var(--accent); opacity: .12; transition: opacity .2s; }
+.obs-punto { fill: var(--accent); }
+.obs-estrella:hover .obs-halo, .obs-estrella:focus-visible .obs-halo { opacity: .35; }
+.obs-estrella:focus-visible { outline: none; }
+.obs-estrella:focus-visible .obs-punto { stroke: var(--ink); stroke-width: 2; }
+.obs-fandom text { font-family: var(--font-caps, var(--font-ui)); font-size: 17px; fill: var(--ink); letter-spacing: .05em; }
+.obs-fandom:hover text, .obs-fandom:focus-visible text { fill: var(--accent); }
+.obs-fandom:focus-visible { outline: none; }
+.obs-fandom:focus-visible text { text-decoration: underline; }
+
+.obs-corona { fill: var(--accent); opacity: .12; }
+.obs-sol-disco { fill: var(--accent); }
+.obs-sol-texto { font-family: var(--font-caps, var(--font-ui)); font-size: 15px; fill: var(--on-accent); letter-spacing: .04em; }
+.obs-sol:hover .obs-corona, .obs-sol:focus-visible .obs-corona { opacity: .28; }
+.obs-sol:focus-visible { outline: none; }
+.obs-sol:focus-visible .obs-sol-disco { stroke: var(--ink); stroke-width: 3; }
+
+.obs-blanco { fill: transparent; }
+.obs-planeta-disco { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.obs-planeta-nombre { font-family: var(--font-caps, var(--font-ui)); font-size: 16px; fill: var(--ink); letter-spacing: .04em; }
+.obs-planeta-dato { font-family: var(--font-caps, var(--font-ui)); font-size: 13px; fill: var(--muted); letter-spacing: .04em; }
+.obs-planeta a:hover .obs-planeta-disco, .obs-planeta a:focus-visible .obs-planeta-disco { fill: var(--accent-soft); }
+.obs-planeta a:focus-visible { outline: none; }
+.obs-planeta a:focus-visible .obs-planeta-nombre { text-decoration: underline; }
+.obs-planeta.apagado .obs-planeta-disco { stroke: var(--muted); stroke-dasharray: 3 3; fill: transparent; }
+.obs-planeta.apagado .obs-planeta-nombre { fill: var(--muted); }
+.obs-luna circle:last-child { fill: var(--accent); }
+.obs-luna.apagada circle:last-child { fill: var(--muted); opacity: .6; }
+
+.obs-leyenda { display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1.2rem; font-family: var(--font-caps, var(--font-ui)); letter-spacing: .04em; font-size: .95rem; color: var(--muted); }
+.obs-leyenda span { display: inline-flex; align-items: center; gap: .35rem; }
+.obs-leyenda svg { width: 18px; height: 18px; }
+
+/* Instrumentos de la Facultad */
+.obs-instrumentos { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.instrumento {
+  display: grid; justify-items: center; text-align: center; gap: .3rem; padding: 1rem .8rem;
+  color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+.instrumento svg { width: 54px; height: 54px; color: var(--accent); }
+.instrumento-materia { font-family: var(--font-display); font-size: 1.15rem; line-height: 1.2; }
+.instrumento-dato { font-family: var(--font-caps, var(--font-ui)); font-size: .9rem; letter-spacing: .04em; color: var(--muted); }
+.instrumento:hover { border-color: var(--accent); }
+.instrumento:hover .instrumento-materia { color: var(--accent); }
+.instrumento.apagado svg { color: var(--muted); }
+
+.obs-nota { text-align: center; }
+.obs-indice { border-top: 3px double var(--line); padding-top: .8rem; }
+.obs-indice > summary { cursor: pointer; font-family: var(--font-caps, var(--font-ui)); letter-spacing: .05em; color: var(--muted); }
+.obs-indice ul { list-style: none; padding-left: 0; display: grid; gap: .6rem; }
+.obs-indice ul ul { padding-left: 1.1rem; gap: .2rem; margin-top: .3rem; }
+.obs-indice .link-btn { font-size: 1rem; font-family: var(--font-display); text-decoration: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .obs-polvo { animation: obs-titila 5s ease-in-out infinite; animation-delay: var(--d, 0s); }
+  @keyframes obs-titila { 0%, 100% { opacity: .2; } 50% { opacity: .6; } }
+}
+@media (max-width: 980px) {
+  .obs-plano { grid-template-columns: minmax(0, 1fr); }
+  .obs-mapa { order: -1; }
+  .obs-instrumentos { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
+}
+
+/* ---------- Sala en 3D (la arma sala.js) ---------- */
+.obs-vistas { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.obs-sala { position: relative; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--sunken); outline-offset: 3px; }
+.obs-sala[hidden], .obs-plano[hidden] { display: none; }
+.obs-cargando { margin: 0; padding: 4rem 1rem; text-align: center; color: var(--muted); font-style: italic; }
+.sala-lienzo { position: relative; width: 100%; height: min(72vh, 640px); min-height: 380px; }
+.sala-lienzo canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+.sala-lienzo canvas:active { cursor: grabbing; }
+.sala-ayuda { margin: 0; padding: .6rem 1rem; font-size: .9rem; color: var(--muted); border-top: 1px solid var(--line); background: var(--surface); }
+.sala-etiqueta { position: absolute; z-index: 3; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-size: .85rem; white-space: nowrap; }
+.sala-cartel {
+  position: absolute; z-index: 4; left: 50%; bottom: 3.6rem; transform: translateX(-50%);
+  width: min(26rem, calc(100% - 2rem)); background: var(--surface); color: var(--ink);
+  border: 1px solid var(--accent); border-radius: var(--radius); padding: 1rem 1.2rem; box-shadow: 0 18px 40px rgb(0 0 0 / .35);
+}
+.sala-cartel h3 { margin: 0 0 .3rem; font-family: var(--font-display); font-weight: 400; font-size: 1.45rem; line-height: 1.15; }
+.sala-cartel p { margin: 0; font-family: var(--font-read); line-height: 1.55; }
+.sala-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .9rem; }
+.sala-portada { float: right; margin: 0 0 .5rem .8rem; width: 4.6rem; aspect-ratio: 2 / 3; border-radius: 3px 6px 6px 3px; background: var(--accent-soft); border: 1px solid var(--accent); box-shadow: inset 6px 0 0 color-mix(in srgb, var(--accent) 45%, transparent); display: grid; place-items: center; text-align: center; padding: .3rem; }
+.sala-portada span { font-family: var(--font-display); font-size: .95rem; line-height: 1.1; color: var(--ink); }
+.sala-botones { position: absolute; z-index: 3; top: .7rem; right: .7rem; display: flex; gap: 6px; }
+.sala-botones .tool { background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 0 10px; }
+@media (max-width: 640px) { .sala-lienzo { height: 62vh; } .sala-cartel { bottom: .8rem; } }
