@@ -1,0 +1,187 @@
+/* =====================================================================
+   TEMA "ARCHIVO DE LAS SOMBRAS"
+   Capa de color, letras y adornos que va DESPUÉS de styles.css.
+   No toca la maquetación: si se borra la línea que lo carga en
+   index.html, el sitio vuelve exactamente al diseño anterior.
+
+   Concepto: un archivo que se lee de noche.
+     - la noche es el fondo
+     - la vela es el único color de acento (se usa poco)
+     - las constelaciones son las portadas automáticas y la animación
+     - la luna marca el estado de cada historia
+     - la tinta está en la tipografía (IM Fell English y sus versalitas)
+
+   Temas del lector (Ajustes de lectura):
+     Automático y Oscuro -> noche
+     Claro               -> pergamino
+     Baja visión         -> NO se toca: sigue siendo de alto contraste,
+                            sin texturas, sin animación y sin cursor especial.
+   ===================================================================== */
+
+/* ---------- Noche (Automático y Oscuro) ---------- */
+:root:not([data-reader-theme='lowvision']):not([data-reader-theme='light']) {
+  --bg: #0E1020;
+  --surface: #151831;
+  --sunken: #0A0C18;
+  --ink: #EAE3D2;
+  --muted: #ABA698;
+  --line: #2C3050;
+  --accent: #E8A951;
+  --accent-soft: #2F2717;
+  --on-accent: #1A1206;
+  --focus: #A9B8FF;
+  --r-g: #5cb06b; --r-t: #c99f2c; --r-m: #d27a36; --r-e: #d4505b;
+  --ok: #7CC48E; --warn: #E0B64A;
+  --tex: .28;
+  --moon: rgba(120, 132, 210, .10);
+  color-scheme: dark;
+}
+
+/* ---------- Pergamino (Claro) ---------- */
+:root[data-reader-theme='light'] {
+  --bg: #EDE6D6;
+  --surface: #F6F0E3;
+  --sunken: #E2D9C4;
+  --ink: #1C1B2C;
+  --muted: #524E46;
+  --line: #CFC4AC;
+  --accent: #8A4E0C;
+  --accent-soft: #F0DFC4;
+  --on-accent: #FFF8EC;
+  --focus: #2346A8;
+  --tex: .40;
+  --moon: rgba(138, 78, 12, .06);
+  color-scheme: light;
+}
+
+/* ---------- Letras (todos menos Baja visión) ---------- */
+:root:not([data-reader-theme='lowvision']) {
+  --font-display: 'IM Fell English', 'Iowan Old Style', Georgia, serif;
+  --font-caps: 'IM Fell English SC', 'IM Fell English', 'Iowan Old Style', Georgia, serif;
+  --font-read: 'Literata', 'Iowan Old Style', Georgia, serif;
+}
+
+/* Todo lo de abajo es decoración: Baja visión queda afuera */
+:root:not([data-reader-theme='lowvision']) ::selection { background: var(--accent); color: var(--bg); }
+
+/* ---------- Fondo: luz de luna en una esquina y textura de tinta fija ---------- */
+:root:not([data-reader-theme='lowvision']) body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 90% -12%, var(--moon), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1.4 -0.4'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: var(--tex);
+}
+/* En la lectura de un capítulo, la textura se vela más para leer tranquilo */
+:root[data-vista='lectura']:not([data-reader-theme='lowvision']) body::after { opacity: calc(var(--tex) * .5); }
+#site-header { z-index: 30; }
+:root:not([data-reader-theme='lowvision']) main,
+:root:not([data-reader-theme='lowvision']) #site-footer { position: relative; z-index: 2; }
+
+/* ---------- Símbolo propio: luna creciente que sostiene una estrella ---------- */
+:root:not([data-reader-theme='lowvision']) {
+  --simbolo: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M20.5 4.5a12 12 0 1 0 7 21.3A10.2 10.2 0 0 1 20.5 4.5z' fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round'/%3E%3Cpath d='M22.5 11.2l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z'/%3E%3C/svg%3E");
+}
+
+/* ---------- Encabezado ---------- */
+:root:not([data-reader-theme='lowvision']) .brand { display: inline-flex; align-items: center; gap: .55rem; }
+:root:not([data-reader-theme='lowvision']) .brand::before {
+  content: ""; width: 1.6rem; height: 1.6rem; flex: none;
+  background: var(--accent); -webkit-mask: var(--simbolo) center / contain no-repeat; mask: var(--simbolo) center / contain no-repeat;
+}
+:root:not([data-reader-theme='lowvision']) .brand-name { font-size: 1.4rem; letter-spacing: 0; }
+:root:not([data-reader-theme='lowvision']) .nav-link,
+:root:not([data-reader-theme='lowvision']) .menu > summary {
+  font-family: var(--font-caps); font-weight: 400; font-size: 1.05rem; letter-spacing: .06em;
+  border-bottom: 1px solid transparent;
+}
+:root:not([data-reader-theme='lowvision']) .nav-link:hover,
+:root:not([data-reader-theme='lowvision']) .menu > summary:hover { color: var(--ink); border-bottom-color: var(--accent); }
+
+/* ---------- Versalitas para etiquetas, fechas y datos ---------- */
+:root:not([data-reader-theme='lowvision']) :is(.sec-tab, .eyebrow, .notes-h, .meta-row dt, .wstats dt, .blurb-sec, .blurb-series, .blurb-date, .toc-n, .toc-meta, .ch-sub, .results-count, .legend-caps) {
+  font-family: var(--font-caps); font-weight: 400; letter-spacing: .06em; text-transform: none;
+}
+:root:not([data-reader-theme='lowvision']) .eyebrow { font-size: 1rem; color: var(--accent); }
+:root:not([data-reader-theme='lowvision']) .sec-tab { font-size: 1.08rem; }
+:root:not([data-reader-theme='lowvision']) .blurb-sec,
+:root:not([data-reader-theme='lowvision']) .blurb-series,
+:root:not([data-reader-theme='lowvision']) .blurb-date { font-size: .95rem; }
+:root:not([data-reader-theme='lowvision']) .wstats dt,
+:root:not([data-reader-theme='lowvision']) .meta-row dt { font-size: .95rem; }
+
+/* ---------- Títulos ---------- */
+:root:not([data-reader-theme='lowvision']) .intro-title { font-size: clamp(2.6rem, 7vw, 4.6rem); line-height: 1; letter-spacing: 0; }
+:root:not([data-reader-theme='lowvision']) .intro-sub { font-family: var(--font-read); font-style: italic; font-size: 1.15rem; max-width: 38rem; }
+:root:not([data-reader-theme='lowvision']) :is(.work-title, .page-title, .ch-title) { letter-spacing: 0; }
+:root:not([data-reader-theme='lowvision']) .sub-title { font-style: italic; display: flex; align-items: center; gap: .55rem; }
+:root:not([data-reader-theme='lowvision']) .sub-title::before {
+  content: ""; width: 1.15rem; height: 1.15rem; flex: none;
+  background: var(--accent); -webkit-mask: var(--simbolo) center / contain no-repeat; mask: var(--simbolo) center / contain no-repeat;
+}
+
+/* ---------- Separadores de doble línea ---------- */
+:root:not([data-reader-theme='lowvision']) .sec-tabs { border-bottom: 3px double var(--line); }
+:root:not([data-reader-theme='lowvision']) #site-footer { border-top: 3px double var(--line); background: transparent; }
+
+/* ---------- Fichas en las listas ---------- */
+:root:not([data-reader-theme='lowvision']) .blurb { position: relative; }
+:root:not([data-reader-theme='lowvision']) .blurb::before,
+:root:not([data-reader-theme='lowvision']) .blurb::after {
+  content: ""; position: absolute; width: 12px; height: 12px; border: solid var(--accent); opacity: .8; pointer-events: none;
+}
+:root:not([data-reader-theme='lowvision']) .blurb::before { top: 7px; left: 7px; border-width: 1px 0 0 1px; }
+:root:not([data-reader-theme='lowvision']) .blurb::after { bottom: 7px; right: 7px; border-width: 0 1px 1px 0; }
+:root:not([data-reader-theme='lowvision']) .blurb-title { font-size: 1.45rem; }
+:root:not([data-reader-theme='lowvision']) .tagbtn { background: var(--sunken); }
+
+/* Portada automática: constelación dibujada a partir del título (la arma cielo.js) */
+.blurb-const { display: block; width: 72px; aspect-ratio: 2 / 3; border-radius: 4px; border: 1px solid var(--line); background: var(--sunken); overflow: hidden; }
+.blurb-const svg { display: block; width: 100%; height: 100%; }
+@media (max-width: 640px) { .blurb-const { width: 56px; } }
+
+/* ---------- La luna marca el estado: llena = terminada, media = en curso ---------- */
+:root:not([data-reader-theme='lowvision']) .state {
+  width: 1.15rem; height: 1.15rem; margin: .1rem auto 0; border-radius: 50%;
+  border: 1.5px solid var(--accent); color: transparent; overflow: hidden;
+}
+:root:not([data-reader-theme='lowvision']) .st-done { background: var(--accent); }
+:root:not([data-reader-theme='lowvision']) .st-wip { background: linear-gradient(90deg, transparent 50%, var(--accent) 50%); }
+
+/* ---------- Lectura ---------- */
+/* Letra capital automática: solo cuando el capítulo empieza con un párrafo común */
+:root:not([data-reader-theme='lowvision']) #story-body > #workskin > p:first-child::first-letter {
+  font-family: var(--font-display); float: left; font-size: 3.9em; line-height: .82;
+  padding: .07em .12em 0 0; color: var(--accent);
+}
+/* Corte de escena: el símbolo en lugar de ⁂ */
+:root:not([data-reader-theme='lowvision']) :where(.story-body) hr::after {
+  content: ""; display: inline-block; width: 1.6rem; height: 1.6rem; vertical-align: middle;
+  background: var(--accent); -webkit-mask: var(--simbolo) center / contain no-repeat; mask: var(--simbolo) center / contain no-repeat;
+}
+
+/* ---------- Pie con los interruptores del cielo ---------- */
+.ftr-cielo { display: flex; flex-wrap: wrap; gap: 4px 16px; width: 100%; font-family: var(--font-caps, inherit); letter-spacing: .04em; }
+.ftr-cielo label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 2rem; }
+.ftr-cielo input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+:root[data-reader-theme='lowvision'] .ftr-cielo { display: none; }
+
+/* ---------- Cielo animado (lo dibuja cielo.js) ---------- */
+#cielo { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+:root[data-reader-theme='lowvision'] #cielo { display: none; }
+@media print { #cielo { display: none !important; } }
+
+/* ---------- Cursor de estrellita ----------
+   Estrella fina de cuatro brazos con un destello chico; contorno oscuro para que se vea
+   también sobre pergamino. El clic sale del centro de la estrella. En campos de texto vuelve la rayita. */
+:root.cursor-estrella, :root.cursor-estrella body {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3.5C12.5 9.2 14.8 11.5 20.5 12C14.8 12.5 12.5 14.8 12 20.5C11.5 14.8 9.2 12.5 3.5 12C9.2 11.5 11.5 9.2 12 3.5Z' fill='%23E8A951' stroke='%230E1020' stroke-width='0.7' stroke-linejoin='round'/%3E%3Ccircle cx='18.6' cy='5.4' r='1' fill='%23E8A951' stroke='%230E1020' stroke-width='0.4'/%3E%3C/svg%3E") 12 12, auto;
+}
+:root.cursor-estrella :is(a, button, summary, label, select, .tagbtn, .chip, .react, .pc-btn, [role='button']) {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='11.5' fill='none' stroke='%23E8A951' stroke-width='0.8' opacity='0.7'/%3E%3Cpath d='M14 4.5C14.6 11 17 13.4 23.5 14C17 14.6 14.6 17 14 23.5C13.4 17 11 14.6 4.5 14C11 13.4 13.4 11 14 4.5Z' fill='%23F3C27A' stroke='%230E1020' stroke-width='0.7' stroke-linejoin='round'/%3E%3C/svg%3E") 14 14, pointer;
+}
+:root.cursor-estrella :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea, [contenteditable], .ed-inner) { cursor: text; }
